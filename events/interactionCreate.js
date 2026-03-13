@@ -6,13 +6,45 @@ export default (client)=>{
  client.feedbackStep = {}
  client.feedbackMedia = {}
 
- client.on("interactionCreate",async interaction=>{
+ client.on("interactionCreate", async interaction => {
 
-  if(!interaction.isButton()) return
+  /* COMANDO /PAINEL */
+
+  if (interaction.isChatInputCommand()) {
+
+   if (interaction.commandName === "painel") {
+
+    const embed = new EmbedBuilder()
+    .setTitle("⚙️ Painel do Bot de Feedback")
+    .setDescription("Use o botão abaixo para enviar a embed de feedback.")
+    .setColor("Blue")
+
+    const row = new ActionRowBuilder().addComponents(
+
+     new ButtonBuilder()
+     .setCustomId("send_embed")
+     .setLabel("Enviar Embed Feedback")
+     .setEmoji("⭐")
+     .setStyle(ButtonStyle.Success)
+
+    )
+
+    return interaction.reply({
+     embeds: [embed],
+     components: [row]
+    })
+
+   }
+
+  }
+
+  /* BOTÕES */
+
+  if (!interaction.isButton()) return
 
   /* BOTÃO PARA ENVIAR EMBED */
 
-  if(interaction.customId === "send_embed"){
+  if (interaction.customId === "send_embed") {
 
    const embed = new EmbedBuilder()
    .setTitle("⭐ Envie seu Feedback")
@@ -29,19 +61,25 @@ export default (client)=>{
 
    )
 
-   interaction.channel.send({embeds:[embed],components:[row]})
+   await interaction.channel.send({
+    embeds: [embed],
+    components: [row]
+   })
 
-   interaction.reply({content:"✅ Embed enviada!",ephemeral:true})
+   await interaction.reply({
+    content: "✅ Embed enviada!",
+    ephemeral: true
+   })
 
   }
 
   /* CLIENTE INICIANDO FEEDBACK */
 
-  if(interaction.customId === "start_feedback"){
+  if (interaction.customId === "start_feedback") {
 
-   interaction.reply({
-    content:"📷 Envie uma imagem ou vídeo do seu resultado.",
-    ephemeral:true
+   await interaction.reply({
+    content: "📷 Envie uma imagem ou vídeo do seu resultado.",
+    ephemeral: true
    })
 
    client.feedbackStep[interaction.user.id] = "media"
