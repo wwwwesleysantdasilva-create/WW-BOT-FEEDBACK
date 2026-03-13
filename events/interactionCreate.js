@@ -19,8 +19,15 @@ export default (client)=>{
   /* SLASH COMMAND */
 
   if (interaction.isChatInputCommand()) {
+    
+if (interaction.commandName === "painel") {
 
-   if (interaction.commandName === "painel") {
+ if (!interaction.member.permissions.has("Administrator")) {
+  return interaction.reply({
+   content: "❌ Apenas administradores podem usar este painel.",
+   ephemeral: true
+  })
+ }
 
     const embed = new EmbedBuilder()
      .setTitle("⚙️ Painel do Bot de Feedback")
