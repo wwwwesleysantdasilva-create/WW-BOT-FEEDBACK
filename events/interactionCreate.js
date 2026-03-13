@@ -38,7 +38,7 @@ export default (client)=>{
      new ButtonBuilder()
       .setCustomId("config_channel")
       .setLabel("Configurar Canal")
-      .setEmoji("<:emoji_37:1478553904848306257>")
+      .setEmoji("🔘")
       .setStyle(ButtonStyle.Primary)
 
     )
