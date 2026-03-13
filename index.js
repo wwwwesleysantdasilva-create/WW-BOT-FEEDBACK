@@ -51,21 +51,5 @@ fs.readdirSync("./events").forEach(file=>{
  })
 })
 
-/* RESPOSTA DO /PAINEL */
-
-client.on("interactionCreate", async interaction => {
-
- if (!interaction.isChatInputCommand()) return
-
- if (interaction.commandName === "painel") {
-
-  await interaction.reply({
-   content: "⚙️ Painel do bot funcionando!",
-   ephemeral: true
-  })
-
- }
-
-})
 
 client.login(process.env.TOKEN)
