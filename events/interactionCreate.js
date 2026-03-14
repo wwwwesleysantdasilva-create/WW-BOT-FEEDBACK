@@ -16,6 +16,14 @@ import db from "../database/db.js"
 
 export default (client) => {
 
+    // =====================================================================
+    // CORREÇÃO AUTOMÁTICA DO BANCO DE DADOS
+    // Isso garante que a coluna staffRole exista e o bot não trave ao salvar
+    // =====================================================================
+    db.run(`ALTER TABLE config ADD COLUMN staffRole TEXT`, (err) => {
+        // Ignora o erro silenciosamente caso a coluna já exista no banco
+    });
+
     // Memória temporária para o sistema de tickets
     client.feedbackStep ??= {}
     client.feedbackMedia ??= {}
@@ -49,17 +57,17 @@ export default (client) => {
 
                     const imagemPainel = "https://cdn.discordapp.com/attachments/1457915880481624094/1481517561253466213/IMG_2135.jpg?ex=69b5947f&is=69b442ff&hm=76eee3dcea3d75d1afe09d0ee20faa41c36fc216b8b1ce4e4775283cc275f2e3&";
 
-                    // Fileira 1: Configurações do Sistema (Canal e Staff)
+                    // Fileira 1: Configurações do Sistema (Canal e Staff atualizados)
                     const row1 = new ActionRowBuilder().addComponents(
                         new ButtonBuilder()
                             .setCustomId("config_channel")
-                            .setLabel("Canal de Logs")
-                            .setEmoji("📢") // Você pode trocar por emoji customizado se quiser
+                            .setLabel("Canal de logs")
+                            .setEmoji("<:emoji_63:1482158321120051290>")
                             .setStyle(ButtonStyle.Primary),
                         new ButtonBuilder()
                             .setCustomId("config_role")
-                            .setLabel("Cargo Staff")
-                            .setEmoji("👥")
+                            .setLabel("Cargo staff")
+                            .setEmoji("<:emoji_3:1465361454269075720>")
                             .setStyle(ButtonStyle.Primary)
                     );
 
@@ -93,6 +101,7 @@ export default (client) => {
                         });
                     }
                     await interaction.reply("🔒 Fechando este tópico em 3 segundos...");
+                    
                     setTimeout(() => {
                         interaction.channel.delete().catch(console.error);
                     }, 3000);
@@ -104,18 +113,6 @@ export default (client) => {
             if (interaction.isButton()) {
 
                 const userId = interaction.user.id
-
-                if (interaction.customId === "close_feedback") {
-                    await interaction.reply("🔒 Cancelando e fechando este tópico em 3 segundos...");
-                    delete client.feedbackStep[userId];
-                    delete client.feedbackMedia[userId];
-                    delete client.feedbackPhone[userId];
-                    delete client.feedbackText[userId];
-                    setTimeout(() => {
-                        interaction.channel.delete().catch(console.error);
-                    }, 3000);
-                    return;
-                }
 
                 if (interaction.customId === "config_channel") {
                     const menu = new ChannelSelectMenuBuilder()
@@ -132,7 +129,6 @@ export default (client) => {
                     });
                 }
 
-                // NOVO BOTÃO: Configurar Cargo Staff
                 if (interaction.customId === "config_role") {
                     const menu = new RoleSelectMenuBuilder()
                         .setCustomId("select_staff_role")
@@ -204,7 +200,6 @@ export default (client) => {
                             let corFinal = row?.embedColor || "#FFFFFF";
                             if (!corFinal.startsWith("#")) corFinal = "#FFFFFF";
 
-                            // Usa os textos padrões que você mandou, ou o que estiver no banco
                             const embed = new EmbedBuilder()
                                 .setDescription(row?.embedDescription || descPadrao)
                                 .setColor(corFinal);
@@ -268,7 +263,6 @@ export default (client) => {
                         });
                     }
 
-                    // Puxamos do banco o Cargo Staff para marcá-los no tópico
                     db.get(`SELECT staffRole FROM config WHERE guild=?`, [guild.id], async (err, row) => {
                         
                         const novoTopico = await interaction.channel.threads.create({
@@ -280,8 +274,9 @@ export default (client) => {
 
                         await novoTopico.members.add(user.id);
 
+                        // Exibe apenas o comando /fechar para o usuário, de forma invisível para os outros
                         interaction.reply({
-                            content: `✅ Tópico criado! Vá para <#${novoTopico.id}> para iniciar.`,
+                            content: `✅ Tópico criado! Vá para <#${novoTopico.id}> para iniciar.\n*(Para cancelar ou fechar o atendimento a qualquer momento, digite o comando \`/fechar\` dentro do tópico)*`,
                             ephemeral: true
                         });
 
@@ -291,15 +286,7 @@ export default (client) => {
                             .setColor("#FFFFFF")
                             .setDescription("<:emoji_35:1477664716204540118> Informe Seu Celular");
 
-                        const rowClose = new ActionRowBuilder().addComponents(
-                            new ButtonBuilder()
-                                .setCustomId("close_feedback")
-                                .setLabel("Cancelar / Fechar")
-                                .setEmoji("🔒")
-                                .setStyle(ButtonStyle.Danger)
-                        );
-
-                        // Monta a mensagem marcando o usuário e, se existir, a Staff
+                        // Botão foi removido daqui! Fica apenas a marcação e a instrução
                         let msgMencionando = `<@${user.id}>`;
                         if (row?.staffRole) {
                             msgMencionando += ` | <@&${row.staffRole}>`;
@@ -307,8 +294,7 @@ export default (client) => {
 
                         return novoTopico.send({
                             content: msgMencionando, 
-                            embeds: [embedPasso1],
-                            components: [rowClose] 
+                            embeds: [embedPasso1]
                         });
                     });
                 }
@@ -325,7 +311,6 @@ export default (client) => {
                     const emojiBotao = interaction.fields.getTextInputValue("input_emoji") || null;
 
                     db.get(`SELECT * FROM config WHERE guild=?`, [interaction.guild.id], (err, row) => {
-                        // Adicionamos a coluna staffRole no INSERT para não apagá-la ao editar a embed
                         db.run(
                             `INSERT OR REPLACE INTO config (guild, feedbackChannel, staffRole, embedTitle, embedDescription, embedColor, embedImage, buttonEmoji, buttonLabel) 
                              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -351,54 +336,59 @@ export default (client) => {
             }
 
             /* ================= MENUS (Canal e Cargo) ================= */
-            if (interaction.isChannelSelectMenu() && interaction.customId === "select_feedback_channel") {
-                const channelId = interaction.values[0]
-                db.get(`SELECT * FROM config WHERE guild=?`, [interaction.guild.id], (err, row) => {
-                    db.run(
-                        `INSERT OR REPLACE INTO config (guild, feedbackChannel, staffRole, embedTitle, embedDescription, embedColor, embedImage, buttonEmoji, buttonLabel)
-                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                        [
-                            interaction.guild.id, 
-                            channelId,
-                            row?.staffRole || null,
-                            row?.embedTitle || null,
-                            row?.embedDescription || null,
-                            row?.embedColor || null,
-                            row?.embedImage || null,
-                            row?.buttonEmoji || null,
-                            row?.buttonLabel || null
-                        ]
-                    );
-                });
-                return interaction.reply({
-                    content: `✅ Canal de Logs configurado: <#${channelId}>`,
-                    ephemeral: true
-                });
-            }
+            
+            // Tratamento corrigido para o Menu de Canais e Cargos
+            if (interaction.isAnySelectMenu()) {
+                
+                if (interaction.customId === "select_feedback_channel") {
+                    const channelId = interaction.values[0]
+                    db.get(`SELECT * FROM config WHERE guild=?`, [interaction.guild.id], (err, row) => {
+                        db.run(
+                            `INSERT OR REPLACE INTO config (guild, feedbackChannel, staffRole, embedTitle, embedDescription, embedColor, embedImage, buttonEmoji, buttonLabel)
+                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                            [
+                                interaction.guild.id, 
+                                channelId,
+                                row?.staffRole || null,
+                                row?.embedTitle || null,
+                                row?.embedDescription || null,
+                                row?.embedColor || null,
+                                row?.embedImage || null,
+                                row?.buttonEmoji || null,
+                                row?.buttonLabel || null
+                            ]
+                        );
+                    });
+                    return interaction.reply({
+                        content: `✅ Canal de Logs configurado: <#${channelId}>`,
+                        ephemeral: true
+                    });
+                }
 
-            if (interaction.isRoleSelectMenu() && interaction.customId === "select_staff_role") {
-                const roleId = interaction.values[0]
-                db.get(`SELECT * FROM config WHERE guild=?`, [interaction.guild.id], (err, row) => {
-                    db.run(
-                        `INSERT OR REPLACE INTO config (guild, feedbackChannel, staffRole, embedTitle, embedDescription, embedColor, embedImage, buttonEmoji, buttonLabel)
-                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                        [
-                            interaction.guild.id, 
-                            row?.feedbackChannel || null,
-                            roleId,
-                            row?.embedTitle || null,
-                            row?.embedDescription || null,
-                            row?.embedColor || null,
-                            row?.embedImage || null,
-                            row?.buttonEmoji || null,
-                            row?.buttonLabel || null
-                        ]
-                    );
-                });
-                return interaction.reply({
-                    content: `✅ Cargo Staff configurado: <@&${roleId}>. Eles serão notificados nos novos tickets.`,
-                    ephemeral: true
-                });
+                if (interaction.customId === "select_staff_role") {
+                    const roleId = interaction.values[0]
+                    db.get(`SELECT * FROM config WHERE guild=?`, [interaction.guild.id], (err, row) => {
+                        db.run(
+                            `INSERT OR REPLACE INTO config (guild, feedbackChannel, staffRole, embedTitle, embedDescription, embedColor, embedImage, buttonEmoji, buttonLabel)
+                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                            [
+                                interaction.guild.id, 
+                                row?.feedbackChannel || null,
+                                roleId,
+                                row?.embedTitle || null,
+                                row?.embedDescription || null,
+                                row?.embedColor || null,
+                                row?.embedImage || null,
+                                row?.buttonEmoji || null,
+                                row?.buttonLabel || null
+                            ]
+                        );
+                    });
+                    return interaction.reply({
+                        content: `✅ Cargo Staff configurado: <@&${roleId}>. Eles serão notificados nos novos tickets.`,
+                        ephemeral: true
+                    });
+                }
             }
 
         } catch (err) {
