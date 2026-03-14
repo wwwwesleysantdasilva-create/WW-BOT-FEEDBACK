@@ -29,26 +29,7 @@ if (interaction.commandName === "painel") {
   })
  }
 
-    const embed = new EmbedBuilder()
-     .setTitle("⚙️ Painel do Bot de Feedback")
-     .setDescription("Configure o sistema usando os botões abaixo.")
-     .setColor("Blue")
-
-    const row = new ActionRowBuilder().addComponents(
-
-     new ButtonBuilder()
-      .setCustomId("send_embed")
-      .setLabel("Enviar Embed Feedback")
-      .setEmoji("⭐")
-      .setStyle(ButtonStyle.Success),
-
-     new ButtonBuilder()
-      .setCustomId("config_channel")
-      .setLabel("Configurar Canal")
-      .setEmoji("🔘")
-      .setStyle(ButtonStyle.Primary)
-
-    )
+  
 
     return interaction.reply({
      embeds:[embed],
@@ -57,7 +38,53 @@ if (interaction.commandName === "painel") {
     })
 
    }
+const row1 = new ActionRowBuilder().addComponents(
 
+ new ButtonBuilder()
+  .setCustomId("config_channel")
+  .setLabel("Canal Feedback")
+  .setEmoji("📢")
+  .setStyle(ButtonStyle.Primary),
+
+ new ButtonBuilder()
+  .setCustomId("edit_embed")
+  .setLabel("Editar Texto")
+  .setEmoji("📝")
+  .setStyle(ButtonStyle.Secondary)
+
+)
+
+const row2 = new ActionRowBuilder().addComponents(
+
+ new ButtonBuilder()
+  .setCustomId("edit_image")
+  .setLabel("Imagem Embed")
+  .setEmoji("🖼️")
+  .setStyle(ButtonStyle.Secondary),
+
+ new ButtonBuilder()
+  .setCustomId("edit_color")
+  .setLabel("Cor Embed")
+  .setEmoji("🎨")
+  .setStyle(ButtonStyle.Secondary)
+
+)
+
+const row3 = new ActionRowBuilder().addComponents(
+
+ new ButtonBuilder()
+  .setCustomId("edit_button")
+  .setLabel("Editar Botão")
+  .setEmoji("🔘")
+  .setStyle(ButtonStyle.Secondary),
+
+ new ButtonBuilder()
+  .setCustomId("send_embed")
+  .setLabel("Enviar Embed")
+  .setEmoji("⭐")
+  .setStyle(ButtonStyle.Success)
+
+)
   }
 
   /* BOTÃO CONFIGURAR CANAL */
