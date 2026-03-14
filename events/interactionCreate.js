@@ -15,7 +15,6 @@ import db from "../database/db.js"
 
 export default (client) => {
 
-    // Inicializando os objetos na memória do bot para os passos
     client.feedbackStep ??= {}
     client.feedbackMedia ??= {}
     client.feedbackPhone ??= {}
@@ -37,11 +36,8 @@ export default (client) => {
                         });
                     }
 
-                    const embed = new EmbedBuilder()
-                        .setTitle("⚙️ Painel de Controle")
-                        .setDescription("Gerencie o sistema de feedback do servidor.")
-                        .setColor("#FFFFFF")
-                        .setImage("https://cdn.discordapp.com/attachments/1457915880481624094/1481517561253466213/IMG_2135.jpg?ex=69b5947f&is=69b442ff&hm=76eee3dcea3d75d1afe09d0ee20faa41c36fc216b8b1ce4e4775283cc275f2e3&");
+                    // PAINEL AGORA É APENAS TEXTO (SEM EMBED)
+                    const mensagemPainel = "⚙️ **Painel de Controle - Sistema de Feedback**\n\nUtilize os botões abaixo para gerenciar como os feedbacks serão recebidos no servidor.\n\n*(Use o botão Configurar Aparência para alterar a cor, imagem e textos da Embed que será enviada para os membros)*";
 
                     const row1 = new ActionRowBuilder().addComponents(
                         new ButtonBuilder()
@@ -62,7 +58,7 @@ export default (client) => {
                     );
 
                     return interaction.reply({
-                        embeds: [embed],
+                        content: mensagemPainel,
                         components: [row1],
                         ephemeral: true
                     });
@@ -133,35 +129,62 @@ export default (client) => {
                 }
 
                 if (interaction.customId === "send_embed") {
-                    db.get(`SELECT * FROM config WHERE guild=?`, [interaction.guild.id], async (_, row) => {
-                        const embed = new EmbedBuilder()
-                            .setTitle(row?.embedTitle || "⭐ Envie seu Feedback")
-                            .setDescription(row?.embedDescription || "Clique no botão abaixo.")
-                            .setColor(row?.embedColor || "#FFFFFF");
-                            
-                        if (row?.embedImage) embed.setImage(row.embedImage);
+                    db.get(`SELECT * FROM config WHERE guild=?`, [interaction.guild.id], async (err, row) => {
+                        
+                        try {
+                            // Validação de cor para não crashar
+                            let corFinal = row?.embedColor || "#FFFFFF";
+                            if (!corFinal.startsWith("#")) corFinal = "#FFFFFF";
 
-                        const button = new ButtonBuilder()
-                            .setCustomId("start_feedback")
-                            .setLabel(row?.buttonLabel || "Enviar Feedback")
-                            .setEmoji(row?.buttonEmoji || "⭐")
-                            .setStyle(ButtonStyle.Primary);
+                            const embed = new EmbedBuilder()
+                                .setTitle(row?.embedTitle || "⭐ Envie seu Feedback")
+                                .setDescription(row?.embedDescription || "Clique no botão abaixo.")
+                                .setColor(corFinal);
+                                
+                            // Validação de link de imagem para não crashar
+                            let imagemFinal = row?.embedImage;
+                            if (imagemFinal && imagemFinal.startsWith("http")) {
+                                embed.setImage(imagemFinal);
+                            }
 
-                        const rowBtn = new ActionRowBuilder().addComponents(button);
+                            const button = new ButtonBuilder()
+                                .setCustomId("start_feedback")
+                                .setLabel(row?.buttonLabel || "Enviar Feedback")
+                                .setStyle(ButtonStyle.Primary);
 
-                        await interaction.channel.send({
-                            embeds: [embed],
-                            components: [rowBtn]
-                        });
+                            // Validação de emoji
+                            try {
+                                if (row?.buttonEmoji) {
+                                    button.setEmoji(row.buttonEmoji);
+                                } else {
+                                    button.setEmoji("⭐");
+                                }
+                            } catch (emojiErro) {
+                                button.setEmoji("⭐"); // Se o emoji salvo for inválido, usa a estrela
+                            }
 
-                        interaction.reply({
-                            content: "✅ Embed enviada!",
-                            ephemeral: true
-                        });
+                            const rowBtn = new ActionRowBuilder().addComponents(button);
+
+                            await interaction.channel.send({
+                                embeds: [embed],
+                                components: [rowBtn]
+                            });
+
+                            return interaction.reply({
+                                content: "✅ Embed enviada com sucesso no chat!",
+                                ephemeral: true
+                            });
+
+                        } catch (erroEmbed) {
+                            console.error("Erro ao gerar a embed:", erroEmbed);
+                            return interaction.reply({
+                                content: "❌ Ocorreu um erro ao montar a Embed. Verifique se a cor HEX e a URL da Imagem estão corretas em 'Configurar Aparência'.",
+                                ephemeral: true
+                            });
+                        }
                     });
                 }
 
-                // Quando o membro clica para Iniciar o Feedback
                 if (interaction.customId === "start_feedback") {
                     const guild = interaction.guild;
                     const user = interaction.user;
@@ -174,7 +197,6 @@ export default (client) => {
                         });
                     }
 
-                    // Cria o canal temporário
                     const novoCanal = await guild.channels.create({
                         name: `feedback-${user.id}`,
                         type: ChannelType.GuildText,
@@ -199,7 +221,6 @@ export default (client) => {
                         ephemeral: true
                     });
 
-                    // Define o primeiro passo do formulário do membro
                     client.feedbackStep[userId] = "media";
 
                     return novoCanal.send({
@@ -251,7 +272,7 @@ export default (client) => {
                     });
 
                     return interaction.reply({
-                        content: "✅ Cores, textos e imagens atualizados com sucesso!",
+                        content: "✅ Cores, textos e imagens atualizados com sucesso! Tente clicar em **Enviar Embed** agora.",
                         ephemeral: true
                     });
                 }
@@ -301,12 +322,10 @@ export default (client) => {
 
         const userId = msg.author.id;
 
-        // O bot só vai escutar o passo a passo se a mensagem for enviada no ticket daquele usuário
         if (msg.channel.name === `feedback-${userId}`) {
 
             const step = client.feedbackStep[userId];
 
-            /* PASSO 1 - MIDIA */
             if (step === "media") {
                 if (msg.attachments.size === 0) {
                     return msg.reply("❌ Por favor, envie uma imagem ou vídeo para continuar.");
@@ -316,14 +335,12 @@ export default (client) => {
                 return msg.reply("📱 **Passo 2:** Qual modelo do celular você usa?\nEx: iPhone 12 / Redmi Note 11");
             }
 
-            /* PASSO 2 - CELULAR */
             if (step === "phone") {
                 client.feedbackPhone[userId] = msg.content;
                 client.feedbackStep[userId] = "text";
                 return msg.reply("💬 **Passo 3:** Agora escreva seu feedback detalhado.");
             }
 
-            /* PASSO 3 - FEEDBACK FINAL */
             if (step === "text") {
                 const feedbackText = msg.content;
 
@@ -339,7 +356,6 @@ export default (client) => {
                         return msg.reply("❌ Canal de feedback não encontrado. Ele pode ter sido apagado.");
                     }
 
-                    // Monta a sua Embed original com os dados coletados
                     const embed = new EmbedBuilder()
                         .setTitle("⭐ Novo Feedback")
                         .addFields(
@@ -359,18 +375,14 @@ export default (client) => {
                         .setColor("#FFD700")
                         .setFooter({ text: `Cliente: ${msg.author.tag}` });
 
-                    // Envia para o canal oficial
                     await channel.send({ embeds: [embed] });
 
-                    // Avisa o membro
                     await msg.reply("✅ Feedback enviado com sucesso! Este canal será fechado em 3 segundos...");
 
-                    // Limpa a memória
                     delete client.feedbackStep[userId];
                     delete client.feedbackMedia[userId];
                     delete client.feedbackPhone[userId];
 
-                    // Apaga o ticket
                     setTimeout(() => {
                         msg.channel.delete().catch(console.error);
                     }, 3000);
