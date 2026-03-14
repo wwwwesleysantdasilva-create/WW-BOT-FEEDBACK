@@ -11,18 +11,22 @@ import db from "../database/db.js"
 
 export default (client)=>{
 
- client.feedbackStep = {}
- client.feedbackMedia = {}
+ client.feedbackStep ??= {}
+ client.feedbackMedia ??= {}
+
+ client.editState ??= {}
 
  client.on("interactionCreate", async interaction => {
 
+  try{
+
   /* ================= SLASH COMMAND ================= */
 
-  if (interaction.isChatInputCommand()) {
+  if(interaction.isChatInputCommand()){
 
-   if (interaction.commandName === "painel") {
+   if(interaction.commandName === "painel"){
 
-    if (!interaction.member.permissions.has("Administrator")) {
+    if(!interaction.member.permissions.has("Administrator")){
      return interaction.reply({
       content:"❌ Apenas administradores podem usar este painel.",
       ephemeral:true
@@ -30,55 +34,55 @@ export default (client)=>{
     }
 
     const embed = new EmbedBuilder()
-    .setTitle("⚙️ Painel do Bot de Feedback")
-    .setDescription("Use os botões abaixo para configurar o bot.")
-    .setColor("Blue")
+    .setTitle("⚙️ Painel de Controle")
+    .setDescription("Gerencie o sistema de feedback do servidor.")
+    .setColor("#FFFFFF")
 
     const row1 = new ActionRowBuilder().addComponents(
 
      new ButtonBuilder()
-      .setCustomId("config_channel")
-      .setLabel("Canal Feedback")
-      .setEmoji("📢")
-      .setStyle(ButtonStyle.Primary),
+     .setCustomId("config_channel")
+     .setLabel("Canal Feedback")
+     .setEmoji("📢")
+     .setStyle(ButtonStyle.Primary),
 
      new ButtonBuilder()
-      .setCustomId("edit_embed")
-      .setLabel("Editar Texto")
-      .setEmoji("📝")
-      .setStyle(ButtonStyle.Secondary)
+     .setCustomId("edit_embed_text")
+     .setLabel("Editar Texto")
+     .setEmoji("📝")
+     .setStyle(ButtonStyle.Secondary)
 
     )
 
     const row2 = new ActionRowBuilder().addComponents(
 
      new ButtonBuilder()
-      .setCustomId("edit_image")
-      .setLabel("Imagem Embed")
-      .setEmoji("🖼️")
-      .setStyle(ButtonStyle.Secondary),
+     .setCustomId("edit_embed_image")
+     .setLabel("Imagem Embed")
+     .setEmoji("🖼️")
+     .setStyle(ButtonStyle.Secondary),
 
      new ButtonBuilder()
-      .setCustomId("edit_color")
-      .setLabel("Cor Embed")
-      .setEmoji("🎨")
-      .setStyle(ButtonStyle.Secondary)
+     .setCustomId("edit_embed_color")
+     .setLabel("Cor Embed")
+     .setEmoji("🎨")
+     .setStyle(ButtonStyle.Secondary)
 
     )
 
     const row3 = new ActionRowBuilder().addComponents(
 
      new ButtonBuilder()
-      .setCustomId("edit_button")
-      .setLabel("Editar Botão")
-      .setEmoji("🔘")
-      .setStyle(ButtonStyle.Secondary),
+     .setCustomId("edit_button")
+     .setLabel("Botão Feedback")
+     .setEmoji("🔘")
+     .setStyle(ButtonStyle.Secondary),
 
      new ButtonBuilder()
-      .setCustomId("send_embed")
-      .setLabel("Enviar Embed")
-      .setEmoji("⭐")
-      .setStyle(ButtonStyle.Success)
+     .setCustomId("send_embed")
+     .setLabel("Enviar Embed")
+     .setEmoji("⭐")
+     .setStyle(ButtonStyle.Success)
 
     )
 
@@ -94,45 +98,41 @@ export default (client)=>{
 
   /* ================= BOTÕES ================= */
 
-  if (interaction.isButton()) {
+  if(interaction.isButton()){
 
-   /* CONFIGURAR CANAL */
+   const userId = interaction.user.id
 
-   if (interaction.customId === "config_channel") {
+   if(interaction.customId === "config_channel"){
 
-    const select = new ChannelSelectMenuBuilder()
+    const menu = new ChannelSelectMenuBuilder()
     .setCustomId("select_feedback_channel")
     .setPlaceholder("Selecione o canal de feedback")
     .setChannelTypes(ChannelType.GuildText)
 
-    const row = new ActionRowBuilder().addComponents(select)
+    const row = new ActionRowBuilder().addComponents(menu)
 
     return interaction.reply({
-     content:"📢 Escolha o canal de feedback:",
+     content:"📢 Escolha o canal onde os feedbacks serão enviados:",
      components:[row],
      ephemeral:true
     })
 
    }
 
-   /* EDITAR TEXTO */
+   if(interaction.customId === "edit_embed_text"){
 
-   if (interaction.customId === "edit_embed") {
-
-    client.editEmbedUser = interaction.user.id
+    client.editState[userId] = "text"
 
     return interaction.reply({
-     content:"✍️ Envie:\n\nTITULO | DESCRIÇÃO\n\nExemplo:\nFeedback da Loja | Veja os resultados dos clientes",
+     content:"✍️ Envie:\n\n`TITULO | DESCRIÇÃO`",
      ephemeral:true
     })
 
    }
 
-   /* EDITAR IMAGEM */
+   if(interaction.customId === "edit_embed_image"){
 
-   if (interaction.customId === "edit_image") {
-
-    client.editImageUser = interaction.user.id
+    client.editState[userId] = "image"
 
     return interaction.reply({
      content:"🖼️ Envie o link da imagem da embed.",
@@ -141,55 +141,49 @@ export default (client)=>{
 
    }
 
-   /* EDITAR COR */
+   if(interaction.customId === "edit_embed_color"){
 
-   if (interaction.customId === "edit_color") {
-
-    client.editColorUser = interaction.user.id
+    client.editState[userId] = "color"
 
     return interaction.reply({
-     content:"🎨 Envie a cor em HEX.\nExemplo: #00ff88",
+     content:"🎨 Envie a cor HEX.\nEx: `#ffffff`",
      ephemeral:true
     })
 
    }
 
-   /* EDITAR BOTÃO */
+   if(interaction.customId === "edit_button"){
 
-   if (interaction.customId === "edit_button") {
-
-    client.editButtonUser = interaction.user.id
+    client.editState[userId] = "button"
 
     return interaction.reply({
-     content:"🔘 Envie:\n\nEMOJI | TEXTO\n\nExemplo:\n⭐ | Enviar Feedback",
+     content:"🔘 Envie:\n\n`EMOJI | TEXTO`",
      ephemeral:true
     })
 
    }
 
-   /* ENVIAR EMBED */
+   if(interaction.customId === "send_embed"){
 
-   if (interaction.customId === "send_embed") {
-
-    db.get(`SELECT * FROM config WHERE guild=?`,[interaction.guild.id],(_,row)=>{
+    db.get(`SELECT * FROM config WHERE guild=?`,
+    [interaction.guild.id],
+    async(_,row)=>{
 
      const embed = new EmbedBuilder()
      .setTitle(row?.embedTitle || "⭐ Envie seu Feedback")
-     .setDescription(row?.embedDescription || "Clique no botão abaixo para enviar.")
+     .setDescription(row?.embedDescription || "Clique no botão abaixo.")
      .setImage(row?.embedImage || null)
-     .setColor(row?.embedColor || "Green")
+     .setColor(row?.embedColor || "#FFFFFF")
 
-     const rowBtn = new ActionRowBuilder().addComponents(
+     const button = new ButtonBuilder()
+     .setCustomId("start_feedback")
+     .setLabel(row?.buttonLabel || "Enviar Feedback")
+     .setEmoji(row?.buttonEmoji || "⭐")
+     .setStyle(ButtonStyle.Primary)
 
-      new ButtonBuilder()
-      .setCustomId("start_feedback")
-      .setLabel(row?.buttonLabel || "Enviar Feedback")
-      .setEmoji(row?.buttonEmoji || "⭐")
-      .setStyle(ButtonStyle.Primary)
+     const rowBtn = new ActionRowBuilder().addComponents(button)
 
-     )
-
-     interaction.channel.send({
+     await interaction.channel.send({
       embeds:[embed],
       components:[rowBtn]
      })
@@ -203,14 +197,12 @@ export default (client)=>{
 
    }
 
-   /* INICIAR FEEDBACK */
+   if(interaction.customId === "start_feedback"){
 
-   if (interaction.customId === "start_feedback") {
-
-    client.feedbackStep[interaction.user.id] = "media"
+    client.feedbackStep[userId] = "media"
 
     return interaction.reply({
-     content:"📷 Envie uma imagem ou vídeo do seu resultado.",
+     content:"📷 Envie uma imagem ou vídeo do resultado.",
      ephemeral:true
     })
 
@@ -218,17 +210,18 @@ export default (client)=>{
 
   }
 
-  /* ================= SELECT MENU ================= */
+  /* ================= MENU CANAL ================= */
 
-  if (interaction.isChannelSelectMenu()) {
+  if(interaction.isChannelSelectMenu()){
 
-   if (interaction.customId === "select_feedback_channel") {
+   if(interaction.customId === "select_feedback_channel"){
 
     const channelId = interaction.values[0]
 
     db.run(
-     `INSERT OR REPLACE INTO config (guild, feedbackChannel) VALUES (?, ?)`,
-     [interaction.guild.id, channelId]
+     `INSERT OR REPLACE INTO config (guild,feedbackChannel)
+     VALUES (?,?)`,
+     [interaction.guild.id,channelId]
     )
 
     return interaction.reply({
@@ -239,6 +232,12 @@ export default (client)=>{
    }
 
   }
+
+ }catch(err){
+
+  console.error("Erro interaction:",err)
+
+ }
 
  })
 
