@@ -36,11 +36,8 @@ export default (client) => {
                         });
                     }
 
-                    // A imagem que você enviou
-                    const linkImagemPainel = "https://cdn.discordapp.com/attachments/1457915880481624094/1481517561253466213/IMG_2135.jpg?ex=69b5947f&is=69b442ff&hm=76eee3dcea3d75d1afe09d0ee20faa41c36fc216b8b1ce4e4775283cc275f2e3&";
-
-                    // PAINEL AGORA É MENSAGEM SIMPLES COM A IMAGEM EMBUTIDA NO TEXTO
-                    const mensagemPainelCompleta = `⚙️ **Painel de Controle - Sistema de Feedback**\n\nUtilize os botões abaixo para gerenciar o sistema.\n\n${linkImagemPainel}\n\n*(Use o botão Configurar Aparência para alterar a cor, imagem e textos da Embed que será enviada para os membros)*`;
+                    // PAINEL LIMPO: APENAS TEXTO E BOTÕES
+                    const mensagemPainelCompleta = `⚙️ **Painel de Controle - Sistema de Feedback**\n\nUtilize os botões abaixo para gerenciar o sistema.\n\n*(Use o botão Configurar Aparência para alterar a cor, imagem e textos da Embed que será enviada para os membros)*`;
 
                     const row1 = new ActionRowBuilder().addComponents(
                         new ButtonBuilder()
@@ -61,9 +58,9 @@ export default (client) => {
                     );
 
                     return interaction.reply({
-                        content: mensagemPainelCompleta, // Texto + Imagem aqui
+                        content: mensagemPainelCompleta, 
                         components: [row1],
-                        ephemeral: true
+                        ephemeral: true // Só quem digitou o comando vê
                     });
                 }
             }
