@@ -45,7 +45,7 @@ export default (client) => {
             const embedFinal = new EmbedBuilder()
                 .setTitle("⭐ Novo Feedback")
                 .addFields(
-                    { name: "📱 Celular", value: client.feedbackPhone[userId] || "Não informado", inline: true },
+                    { name: "📱 iPhone", value: client.feedbackPhone[userId] || "Não informado", inline: true },
                     { name: "💬 Feedback", value: client.feedbackText[userId] || "Sem texto", inline: false }
                 )
                 .setThumbnail(author.displayAvatarURL())
@@ -54,41 +54,33 @@ export default (client) => {
 
             const midia = (temVideo && client.feedbackMedia[userId]) ? client.feedbackMedia[userId] : null;
             await canalAlvo.send({ content: midia, embeds: [embedFinal] });
-            await thread.send("✅ Enviado com sucesso! Fechando em 3s...");
+            
+            // MENSAGEM DE CONCLUSÃO ATUALIZADA
+            await thread.send("<a:emoji_52:1478562660105719808> Muito Obrigado pelo Seu **feedback ** Ele sera enviado no canal <#1465774134989689084>");
 
             delete client.feedbackStep[userId]; delete client.feedbackMedia[userId];
             delete client.feedbackPhone[userId]; delete client.feedbackText[userId];
-            setTimeout(() => thread.delete().catch(() => {}), 3000);
+            setTimeout(() => thread.delete().catch(() => {}), 4000);
         });
     };
 
     client.on("interactionCreate", async interaction => {
         try {
-            /* ================= SLASH COMMANDS ================= */
-            if (interaction.isChatInputCommand()) {
-                if (interaction.commandName === "painel") {
-                    if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) return interaction.reply({ content: "❌ Sem permissão.", ephemeral: true });
+            if (interaction.isChatInputCommand() && interaction.commandName === "painel") {
+                if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) return interaction.reply({ content: "❌ Sem permissão.", ephemeral: true });
 
-                    const r1 = new ActionRowBuilder().addComponents(
-                        new ButtonBuilder().setCustomId("btn_canais").setLabel("Canais").setEmoji("<:emoji_63:1482158321120051290>").setStyle(ButtonStyle.Primary),
-                        new ButtonBuilder().setCustomId("btn_staff").setLabel("Cargo staff").setEmoji("<:emoji_3:1465361454269075720>").setStyle(ButtonStyle.Primary)
-                    );
-                    const r2 = new ActionRowBuilder().addComponents(
-                        new ButtonBuilder().setCustomId("btn_aparencia").setLabel("Configurar Aparência").setEmoji("<:emoji_62:1482158294649934017>").setStyle(ButtonStyle.Secondary),
-                        new ButtonBuilder().setCustomId("btn_enviar").setLabel("Enviar Embed").setEmoji("<a:emoji_60:1482141690721734776>").setStyle(ButtonStyle.Success)
-                    );
+                const r1 = new ActionRowBuilder().addComponents(
+                    new ButtonBuilder().setCustomId("btn_canais").setLabel("Canais").setEmoji("<:emoji_63:1482158321120051290>").setStyle(ButtonStyle.Primary),
+                    new ButtonBuilder().setCustomId("btn_staff").setLabel("Cargo staff").setEmoji("<:emoji_3:1465361454269075720>").setStyle(ButtonStyle.Primary)
+                );
+                const r2 = new ActionRowBuilder().addComponents(
+                    new ButtonBuilder().setCustomId("btn_aparencia").setLabel("Configurar Aparência").setEmoji("<:emoji_62:1482158294649934017>").setStyle(ButtonStyle.Secondary),
+                    new ButtonBuilder().setCustomId("btn_enviar").setLabel("Enviar Embed").setEmoji("<a:emoji_60:1482141690721734776>").setStyle(ButtonStyle.Success)
+                );
 
-                    return interaction.reply({ content: IMG_PAINEL_CONTROL, components: [r1, r2], ephemeral: true });
-                }
-
-                if (interaction.commandName === "fechar") {
-                    if (!interaction.channel.isThread()) return interaction.reply({ content: "❌ Use em tópicos.", ephemeral: true });
-                    await interaction.reply("🔒 Fechando tópico...");
-                    setTimeout(() => interaction.channel.delete().catch(() => {}), 2000);
-                }
+                return interaction.reply({ content: IMG_PAINEL_CONTROL, components: [r1, r2], ephemeral: true });
             }
 
-            /* ================= BOTÕES ================= */
             if (interaction.isButton()) {
                 const uid = interaction.user.id;
 
@@ -146,7 +138,7 @@ export default (client) => {
 
                     db.get(`SELECT staffRole FROM config WHERE guild=?`, [interaction.guild.id], async (err, row) => {
                         const e1 = new EmbedBuilder().setColor("#FFFFFF").setDescription("<:emoji_67:1482232025363648652> Atenção ao enviar Seu feedback , Nao aceitamos foto como feedbacks!!");
-                        const e2 = new EmbedBuilder().setColor("#FFFFFF").setDescription("<a:emoji_60:1482141690721734776> `informe seu celular`");
+                        const e2 = new EmbedBuilder().setColor("#FFFFFF").setDescription("<a:emoji_60:1482141690721734776> ** INFORME SEU IPHONE! **");
                         const mencao = `<@${interaction.user.id}>${row?.staffRole ? ` | <@&${row.staffRole}>` : ""}`;
                         await thread.send({ content: mencao, embeds: [e1, e2] });
                         return interaction.editReply(`✅ Tópico aberto: <#${thread.id}>`);
@@ -154,7 +146,7 @@ export default (client) => {
                 }
             }
 
-            /* ================= SALVAMENTO (MODAL E MENUS) ================= */
+            /* ================= SALVAMENTO ================= */
             if (interaction.isModalSubmit() && interaction.customId === "mod_aparencia") {
                 const [t, d, c, i, e] = ["f_t", "f_d", "f_c", "f_i", "f_e"].map(id => interaction.fields.getTextInputValue(id));
                 db.get(`SELECT * FROM config WHERE guild=?`, [interaction.guild.id], (err, row) => {
@@ -184,7 +176,7 @@ export default (client) => {
         } catch (e) { console.error(e); }
     });
 
-    /* ================= TICKET FLOW ================= */
+    /* ================= TICKET FLOW ATUALIZADO ================= */
     client.on("messageCreate", async msg => {
         if (msg.author.bot || !msg.guild) return;
         const uid = msg.author.id;
@@ -192,12 +184,12 @@ export default (client) => {
             const step = client.feedbackStep[uid];
             if (step === "phone") {
                 client.feedbackPhone[uid] = msg.content; client.feedbackStep[uid] = "text";
-                return msg.channel.send({ content: `<@${uid}>`, embeds: [new EmbedBuilder().setColor("#FFFFFF").setDescription("<a:emoji_60:1482141690721734776> `Agora Envie Seu Feedback`")] });
+                return msg.channel.send({ content: `<@${uid}>`, embeds: [new EmbedBuilder().setColor("#FFFFFF").setDescription("<a:emoji_60:1482141690721734776> **DÊ SEU FEEDBACK !**")] });
             }
             if (step === "text") {
                 client.feedbackText[uid] = msg.content; client.feedbackStep[uid] = "media";
                 const r = new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId("skip_video").setLabel("Pular Vídeo").setStyle(ButtonStyle.Secondary).setEmoji("⏭️"));
-                return msg.channel.send({ content: `<@${uid}>`, embeds: [new EmbedBuilder().setColor("#FFFFFF").setDescription("<a:emoji_60:1482141690721734776> `Agora envie Seu Video`")], components: [r] });
+                return msg.channel.send({ content: `<@${uid}>`, embeds: [new EmbedBuilder().setColor("#FFFFFF").setDescription("<a:emoji_60:1482141690721734776> **ENVIE SEU VIDEO ! **")], components: [r] });
             }
             if (step === "media") {
                 const a = msg.attachments.first();
