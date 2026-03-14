@@ -16,6 +16,7 @@ import db from "../database/db.js"
 
 export default (client) => {
 
+    // Inicialização do banco
     db.serialize(() => {
         db.run(`ALTER TABLE config ADD COLUMN staffRole TEXT`, (err) => {});
         db.run(`ALTER TABLE config ADD COLUMN logChannel TEXT`, (err) => {});
@@ -26,9 +27,9 @@ export default (client) => {
     client.feedbackPhone ??= {}
     client.feedbackText ??= {} 
 
-    // Links limpos para garantir o carregamento
-    const IMG_PAINEL_CONTROL = "https://cdn.discordapp.com/attachments/1457915880481624094/1482260307228364860/IMG_2287.png";
-    const IMG_FEEDBACK_PADRAO = "https://cdn.discordapp.com/attachments/1457915880481624094/1482259209054715924/IMG_2286.jpg";
+    // === LINKS FINAIS (Lógica de envio direto no content) ===
+    const IMG_PAINEL_CONTROL = "https://cdn.discordapp.com/attachments/1457915880481624094/1482256692346621993/IMG_2284.png";
+    const IMG_FEEDBACK_PADRAO = "https://cdn.discordapp.com/attachments/1457915880481624094/1482256686008766495/IMG_2285.png";
     
     const TEXTO_FEEDBACK_PADRAO = "** Bem Vindo ao painel De feedbacks **\n\n<:emoji_40:1478558562010534088> Caso queira deixar um **Feedback** Clique no botão abaixo !";
     const EMOJI_BTN_PADRAO = "<:emoji_65:1482230136538529942>";
@@ -75,7 +76,7 @@ export default (client) => {
                     new ButtonBuilder().setCustomId("btn_enviar").setLabel("Enviar Embed").setEmoji("<a:emoji_60:1482141690721734776>").setStyle(ButtonStyle.Success)
                 );
 
-                // ENVIANDO COMO TEXTO (IGUAL AOS PRIMEIROS CÓDIGOS)
+                // LÓGICA ORIGINAL: Link direto no content para forçar o Discord a abrir a imagem
                 return interaction.reply({ 
                     content: IMG_PAINEL_CONTROL, 
                     components: [r1, r2], 
@@ -139,7 +140,7 @@ export default (client) => {
                     client.feedbackStep[interaction.user.id] = "phone";
 
                     db.get(`SELECT staffRole FROM config WHERE guild=?`, [interaction.guild.id], async (err, row) => {
-                        const av1 = new EmbedBuilder().setColor("#FFFFFF").setDescription("<:emoji_67:1482232025363648652> Atenção! Vídeos apenas.");
+                        const av1 = new EmbedBuilder().setColor("#FFFFFF").setDescription("<:emoji_67:1482232025363648652> Atenção ao enviar Seu feedback , Nao aceitamos foto como feedbacks!!");
                         const av2 = new EmbedBuilder().setColor("#FFFFFF").setDescription("<a:emoji_60:1482141690721734776> `informe seu celular`");
                         const mencao = `<@${interaction.user.id}>${row?.staffRole ? ` | <@&${row.staffRole}>` : ""}`;
                         await thread.send({ content: mencao, embeds: [av1, av2] });
@@ -148,7 +149,7 @@ export default (client) => {
                 }
             }
 
-            // Lógica de Menus e Modais mantida
+            // ... Lógica de Menus e Modal (Sempre mantida)
             if (interaction.isModalSubmit() && interaction.customId === "mod_aparencia") {
                 const [t, d, c, i, e] = ["f_t", "f_d", "f_c", "f_i", "f_e"].map(f => interaction.fields.getTextInputValue(f));
                 db.get(`SELECT * FROM config WHERE guild=?`, [interaction.guild.id], (err, row) => {
