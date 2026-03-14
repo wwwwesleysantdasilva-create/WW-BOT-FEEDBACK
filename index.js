@@ -9,18 +9,22 @@ const client = new Client({
  ]
 })
 
-/* COMANDO SLASH */
+/* COMANDOS SLASH */
 
 const commands = [
  {
   name: "painel",
   description: "Abrir painel do bot de feedback"
+ },
+ {
+  name: "fechar",
+  description: "Fecha o tópico de atendimento atual"
  }
 ]
 
 /* REGISTRAR COMANDO */
 
-client.once("clientReady", async () => {
+client.once("ready", async () => {
 
  console.log(`🤖 Bot online: ${client.user.tag}`)
 
@@ -33,11 +37,11 @@ client.once("clientReady", async () => {
    { body: commands }
   )
 
-  console.log("✅ Slash command /painel registrado")
+  console.log("✅ Slash commands /painel e /fechar registrados com sucesso!")
 
  } catch (error) {
 
-  console.error(error)
+  console.error("❌ Erro ao registrar comandos:", error)
 
  }
 
@@ -50,6 +54,5 @@ fs.readdirSync("./events").forEach(file=>{
   event.default(client)
  })
 })
-
 
 client.login(process.env.TOKEN)
