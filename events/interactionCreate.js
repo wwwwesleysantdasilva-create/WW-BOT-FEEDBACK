@@ -52,7 +52,6 @@ export default (client) => {
                 .setColor("#FFFFFF") 
                 .setFooter({ text: `Enviado por: ${author.tag}` });
 
-            // Se tem vídeo, enviamos a URL fora da Embed para o player do Discord funcionar
             const conteudoVideo = (hasVideo && client.feedbackMedia[userId]) ? client.feedbackMedia[userId] : null;
 
             await channel.send({ content: conteudoVideo, embeds: [embedFinal] });
@@ -117,25 +116,19 @@ export default (client) => {
                     if (client.feedbackStep[userId] !== "media") {
                         return interaction.reply({ content: "❌ Você já enviou o feedback ou não está na etapa correta.", ephemeral: true });
                     }
-                    await interaction.deferUpdate(); // Confirma o clique no botão sem enviar mensagem
+                    await interaction.deferUpdate(); 
                     client.feedbackMedia[userId] = null;
                     await enviarParaLogs(interaction.guild, interaction.user, interaction.channel, false);
                     return;
                 }
 
-                // BOTÃO FECHAR DO TÓPICO
-                if (interaction.customId === "close_feedback") {
-                    await interaction.reply("🔒 Cancelando e fechando este tópico em 3 segundos...");
-                    delete client.feedbackStep[userId]; delete client.feedbackMedia[userId]; delete client.feedbackPhone[userId]; delete client.feedbackText[userId];
-                    setTimeout(() => interaction.channel.delete().catch(console.error), 3000);
-                    return;
-                }
-
+                // ABRIR MENU DE CANAL DE LOGS
                 if (interaction.customId === "config_channel") {
                     const menu = new ChannelSelectMenuBuilder().setCustomId("select_feedback_channel").setPlaceholder("Selecione o canal de logs dos feedbacks").setChannelTypes(ChannelType.GuildText)
                     return interaction.reply({ content: "📢 Escolha o canal onde os feedbacks aprovados serão enviados:", components: [new ActionRowBuilder().addComponents(menu)], ephemeral: true });
                 }
 
+                // ABRIR MENU DE CARGO STAFF
                 if (interaction.customId === "config_role") {
                     const menu = new RoleSelectMenuBuilder().setCustomId("select_staff_role").setPlaceholder("Selecione o cargo da sua equipe (Staff)")
                     return interaction.reply({ content: "👥 Escolha qual cargo será notificado:", components: [new ActionRowBuilder().addComponents(menu)], ephemeral: true });
@@ -202,18 +195,13 @@ export default (client) => {
                         
                         client.feedbackStep[user.id] = "phone";
 
-                        // Mensagem de ATENÇÃO fixada no topo
                         const embedAviso = new EmbedBuilder().setColor("#FFFFFF").setDescription("<:emoji_67:1482232025363648652> Atenção ao enviar Seu feedback , Nao aceitamos foto como feedbacks!!");
-                        
-                        // Passo 1
                         const embedPasso1 = new EmbedBuilder().setColor("#FFFFFF").setDescription("<a:emoji_60:1482141690721734776> `informe seu celular`");
-                        
-                        const rowClose = new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId("close_feedback").setLabel("Cancelar / Fechar").setEmoji("🔒").setStyle(ButtonStyle.Danger));
 
                         let msgMencionando = `<@${user.id}>`;
                         if (row?.staffRole) msgMencionando += ` | <@&${row.staffRole}>`;
 
-                        await novoTopico.send({ content: msgMencionando, embeds: [embedAviso, embedPasso1], components: [rowClose] });
+                        await novoTopico.send({ content: msgMencionando, embeds: [embedAviso, embedPasso1] });
                         return interaction.editReply({ content: `✅ Tópico criado! Vá para <#${novoTopico.id}> para iniciar.` });
                     });
                 }
@@ -235,7 +223,7 @@ export default (client) => {
             }
 
             /* ================= MENUS (Canal e Cargo) ================= */
-            if (interaction.isAnySelectMenu()) {
+            if (interaction.isChannelSelectMenu()) {
                 if (interaction.customId === "select_feedback_channel") {
                     const channelId = interaction.values[0]
                     db.get(`SELECT * FROM config WHERE guild=?`, [interaction.guild.id], (err, row) => {
@@ -244,6 +232,9 @@ export default (client) => {
                     });
                     return interaction.reply({ content: `✅ Canal de Logs configurado: <#${channelId}>`, ephemeral: true });
                 }
+            }
+
+            if (interaction.isRoleSelectMenu()) {
                 if (interaction.customId === "select_staff_role") {
                     const roleId = interaction.values[0]
                     db.get(`SELECT * FROM config WHERE guild=?`, [interaction.guild.id], (err, row) => {
@@ -292,19 +283,16 @@ export default (client) => {
 
             // ETAPA 3 -> Processa o Vídeo
             if (step === "media") {
-                // Se a pessoa tentou mandar texto no lugar do vídeo
                 if (msg.attachments.size === 0) {
                     return msg.channel.send({ content: `<@${userId}>`, embeds: [new EmbedBuilder().setColor("#ff0000").setDescription("❌ Por favor, envie um **arquivo de vídeo** ou clique no botão 'Enviar sem Vídeo'.")] });
                 }
                 
                 const anexo = msg.attachments.first();
                 
-                // Trava: Se for imagem (ex: image/png, image/jpeg), ele recusa!
                 if (!anexo.contentType || !anexo.contentType.startsWith("video/")) {
                     return msg.channel.send({ content: `<@${userId}>`, embeds: [new EmbedBuilder().setColor("#ff0000").setDescription("❌ Não aceitamos fotos! Por favor, envie apenas um **vídeo** ou clique no botão 'Enviar sem Vídeo'.")] });
                 }
 
-                // Se chegou aqui, é um vídeo válido!
                 client.feedbackMedia[userId] = anexo.url;
                 await enviarParaLogs(msg.guild, msg.author, msg.channel, true);
             }
