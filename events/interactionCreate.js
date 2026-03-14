@@ -21,10 +21,12 @@ export default (client) => {
         db.run(`ALTER TABLE config ADD COLUMN logChannel TEXT`, (err) => {});
     });
 
+    // Variáveis de memória do bot
     client.feedbackStep ??= {}
     client.feedbackMedia ??= {}
     client.feedbackPhone ??= {}
     client.feedbackText ??= {} 
+    client.feedbackThread ??= {} // 👈 NOVA TRAVA: Memória do Tópico
 
     const IMG_PAINEL_CONTROL = "https://cdn.discordapp.com/attachments/1457915880481624094/1482260307454726164/IMG_2287.jpg";
     const IMG_FEEDBACK_PADRAO = "https://cdn.discordapp.com/attachments/1457915880481624094/1482256686008766495/IMG_2285.png";
@@ -55,8 +57,11 @@ export default (client) => {
             
             await thread.send("<a:emoji_52:1478562660105719808> Muito Obrigado pelo Seu **feedback ** Ele sera enviado no canal <#1465774134989689084>");
 
+            // 👈 LIMPANDO A MEMÓRIA PARA NÃO ACUMULAR LIXO
             delete client.feedbackStep[userId]; delete client.feedbackMedia[userId];
             delete client.feedbackPhone[userId]; delete client.feedbackText[userId];
+            delete client.feedbackThread[userId]; 
+            
             setTimeout(() => thread.delete().catch(() => {}), 4000);
         });
     };
@@ -131,7 +136,10 @@ export default (client) => {
 
                     const thread = await interaction.channel.threads.create({ name: tNome, autoArchiveDuration: 60, type: ChannelType.PrivateThread });
                     await thread.members.add(interaction.user.id);
+                    
+                    // 👈 GRAVANDO DE FATO O ID DO TÓPICO
                     client.feedbackStep[interaction.user.id] = "phone";
+                    client.feedbackThread[interaction.user.id] = thread.id; 
 
                     db.get(`SELECT staffRole FROM config WHERE guild=?`, [interaction.guild.id], async (err, row) => {
                         const e1 = new EmbedBuilder().setColor("#FFFFFF").setDescription("<:emoji_67:1482232025363648652> Atenção ao enviar Seu feedback , Nao aceitamos foto como feedbacks!!");
@@ -175,7 +183,9 @@ export default (client) => {
     client.on("messageCreate", async msg => {
         if (msg.author.bot || !msg.guild) return;
         const uid = msg.author.id;
-        if (client.feedbackStep[uid] && msg.channel.isThread()) {
+        
+        // 👈 NOVA REGRA: O bot SÓ escuta se o ID do canal atual for o MESMO ID do tópico de feedback salvo
+        if (client.feedbackStep[uid] && msg.channel.id === client.feedbackThread[uid]) {
             const step = client.feedbackStep[uid];
             if (step === "phone") {
                 client.feedbackPhone[uid] = msg.content; client.feedbackStep[uid] = "text";
