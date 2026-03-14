@@ -17,6 +17,7 @@ import db from "../database/db.js"
 export default (client) => {
 
     db.run(`ALTER TABLE config ADD COLUMN staffRole TEXT`, (err) => {});
+    db.run(`ALTER TABLE config ADD COLUMN logChannel TEXT`, (err) => {});
 
     client.feedbackStep ??= {}
     client.feedbackMedia ??= {}
@@ -28,13 +29,13 @@ export default (client) => {
     const emojiBtnPadrao = "<:emoji_65:1482230136538529942>";
     const textoBtnPadrao = "Enviar Feedback";
 
-    // FUNÇÃO AUXILIAR PARA ENVIAR O FEEDBACK FINAL PARA OS LOGS
-    const enviarParaLogs = async (guild, author, threadChannel, hasVideo) => {
+    // FUNÇÃO AUXILIAR PARA ENVIAR O FEEDBACK FINAL
+    const enviarFeedbackFinal = async (guild, author, threadChannel, hasVideo) => {
         const userId = author.id;
 
         db.get(`SELECT feedbackChannel FROM config WHERE guild=?`, [guild.id], async (err, row) => {
             if (!row?.feedbackChannel) {
-                return threadChannel.send("❌ O canal oficial de feedback não foi configurado pelo administrador.");
+                return threadChannel.send("❌ O canal oficial de feedbacks não foi configurado no painel!");
             }
 
             const channel = guild.channels.cache.get(row.feedbackChannel);
@@ -83,8 +84,9 @@ export default (client) => {
 
                     const imagemPainel = "https://cdn.discordapp.com/attachments/1457915880481624094/1481517561253466213/IMG_2135.jpg?ex=69b5947f&is=69b442ff&hm=76eee3dcea3d75d1afe09d0ee20faa41c36fc216b8b1ce4e4775283cc275f2e3&";
 
+                    // Fileira 1 atualizada: O botão "Canais" agora substitui os dois antigos de canais.
                     const row1 = new ActionRowBuilder().addComponents(
-                        new ButtonBuilder().setCustomId("config_channel").setLabel("Canal de logs").setEmoji("<:emoji_63:1482158321120051290>").setStyle(ButtonStyle.Primary),
+                        new ButtonBuilder().setCustomId("config_channels").setLabel("Canais").setEmoji("<:emoji_63:1482158321120051290>").setStyle(ButtonStyle.Primary),
                         new ButtonBuilder().setCustomId("config_role").setLabel("Cargo staff").setEmoji("<:emoji_3:1465361454269075720>").setStyle(ButtonStyle.Primary)
                     );
 
@@ -111,24 +113,38 @@ export default (client) => {
 
                 const userId = interaction.user.id
 
-                // BOTÃO: FINALIZAR SEM VÍDEO
                 if (interaction.customId === "skip_video") {
                     if (client.feedbackStep[userId] !== "media") {
                         return interaction.reply({ content: "❌ Você já enviou o feedback ou não está na etapa correta.", ephemeral: true });
                     }
                     await interaction.deferUpdate(); 
                     client.feedbackMedia[userId] = null;
-                    await enviarParaLogs(interaction.guild, interaction.user, interaction.channel, false);
+                    await enviarFeedbackFinal(interaction.guild, interaction.user, interaction.channel, false);
                     return;
                 }
 
-                // ABRIR MENU DE CANAL DE LOGS
-                if (interaction.customId === "config_channel") {
-                    const menu = new ChannelSelectMenuBuilder().setCustomId("select_feedback_channel").setPlaceholder("Selecione o canal de logs dos feedbacks").setChannelTypes(ChannelType.GuildText)
-                    return interaction.reply({ content: "📢 Escolha o canal onde os feedbacks aprovados serão enviados:", components: [new ActionRowBuilder().addComponents(menu)], ephemeral: true });
+                // NOVO BOTÃO DE CANAIS (Abre os dois menus juntos)
+                if (interaction.customId === "config_channels") {
+                    const menuLogs = new ChannelSelectMenuBuilder()
+                        .setCustomId("select_log_channel")
+                        .setPlaceholder("Selecione o canal de LOGS internos")
+                        .setChannelTypes(ChannelType.GuildText);
+                        
+                    const menuFeedbacks = new ChannelSelectMenuBuilder()
+                        .setCustomId("select_feedback_channel")
+                        .setPlaceholder("Selecione o canal oficial de FEEDBACKS")
+                        .setChannelTypes(ChannelType.GuildText);
+
+                    const rowLogs = new ActionRowBuilder().addComponents(menuLogs);
+                    const rowFeedbacks = new ActionRowBuilder().addComponents(menuFeedbacks);
+
+                    return interaction.reply({ 
+                        content: "📢 **Configuração de Canais:**\nSelecione abaixo o canal onde os Logs serão salvos e o canal onde os Feedbacks serão postados.", 
+                        components: [rowLogs, rowFeedbacks], 
+                        ephemeral: true 
+                    });
                 }
 
-                // ABRIR MENU DE CARGO STAFF
                 if (interaction.customId === "config_role") {
                     const menu = new RoleSelectMenuBuilder().setCustomId("select_staff_role").setPlaceholder("Selecione o cargo da sua equipe (Staff)")
                     return interaction.reply({ content: "👥 Escolha qual cargo será notificado:", components: [new ActionRowBuilder().addComponents(menu)], ephemeral: true });
@@ -216,21 +232,31 @@ export default (client) => {
                 const emojiBotao = interaction.fields.getTextInputValue("input_emoji") || null;
 
                 db.get(`SELECT * FROM config WHERE guild=?`, [interaction.guild.id], (err, row) => {
-                    db.run(`INSERT OR REPLACE INTO config (guild, feedbackChannel, staffRole, embedTitle, embedDescription, embedColor, embedImage, buttonEmoji, buttonLabel) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                        [interaction.guild.id, row?.feedbackChannel || null, row?.staffRole || null, titulo, descricao, cor, imagem, emojiBotao, textoBtnPadrao]);
+                    db.run(`INSERT OR REPLACE INTO config (guild, feedbackChannel, logChannel, staffRole, embedTitle, embedDescription, embedColor, embedImage, buttonEmoji, buttonLabel) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                        [interaction.guild.id, row?.feedbackChannel || null, row?.logChannel || null, row?.staffRole || null, titulo, descricao, cor, imagem, emojiBotao, textoBtnPadrao]);
                 });
                 return interaction.reply({ content: "✅ Configurações atualizadas!", ephemeral: true });
             }
 
             /* ================= MENUS (Canal e Cargo) ================= */
             if (interaction.isChannelSelectMenu()) {
+                
+                if (interaction.customId === "select_log_channel") {
+                    const channelId = interaction.values[0]
+                    db.get(`SELECT * FROM config WHERE guild=?`, [interaction.guild.id], (err, row) => {
+                        db.run(`INSERT OR REPLACE INTO config (guild, feedbackChannel, logChannel, staffRole, embedTitle, embedDescription, embedColor, embedImage, buttonEmoji, buttonLabel) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                            [interaction.guild.id, row?.feedbackChannel || null, channelId, row?.staffRole || null, row?.embedTitle || null, row?.embedDescription || null, row?.embedColor || null, row?.embedImage || null, row?.buttonEmoji || null, row?.buttonLabel || null]);
+                    });
+                    return interaction.reply({ content: `✅ Canal de Logs configurado: <#${channelId}>`, ephemeral: true });
+                }
+
                 if (interaction.customId === "select_feedback_channel") {
                     const channelId = interaction.values[0]
                     db.get(`SELECT * FROM config WHERE guild=?`, [interaction.guild.id], (err, row) => {
-                        db.run(`INSERT OR REPLACE INTO config (guild, feedbackChannel, staffRole, embedTitle, embedDescription, embedColor, embedImage, buttonEmoji, buttonLabel) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                            [interaction.guild.id, channelId, row?.staffRole || null, row?.embedTitle || null, row?.embedDescription || null, row?.embedColor || null, row?.embedImage || null, row?.buttonEmoji || null, row?.buttonLabel || null]);
+                        db.run(`INSERT OR REPLACE INTO config (guild, feedbackChannel, logChannel, staffRole, embedTitle, embedDescription, embedColor, embedImage, buttonEmoji, buttonLabel) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                            [interaction.guild.id, channelId, row?.logChannel || null, row?.staffRole || null, row?.embedTitle || null, row?.embedDescription || null, row?.embedColor || null, row?.embedImage || null, row?.buttonEmoji || null, row?.buttonLabel || null]);
                     });
-                    return interaction.reply({ content: `✅ Canal de Logs configurado: <#${channelId}>`, ephemeral: true });
+                    return interaction.reply({ content: `✅ Canal de Feedbacks configurado: <#${channelId}>`, ephemeral: true });
                 }
             }
 
@@ -238,8 +264,8 @@ export default (client) => {
                 if (interaction.customId === "select_staff_role") {
                     const roleId = interaction.values[0]
                     db.get(`SELECT * FROM config WHERE guild=?`, [interaction.guild.id], (err, row) => {
-                        db.run(`INSERT OR REPLACE INTO config (guild, feedbackChannel, staffRole, embedTitle, embedDescription, embedColor, embedImage, buttonEmoji, buttonLabel) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                            [interaction.guild.id, row?.feedbackChannel || null, roleId, row?.embedTitle || null, row?.embedDescription || null, row?.embedColor || null, row?.embedImage || null, row?.buttonEmoji || null, row?.buttonLabel || null]);
+                        db.run(`INSERT OR REPLACE INTO config (guild, feedbackChannel, logChannel, staffRole, embedTitle, embedDescription, embedColor, embedImage, buttonEmoji, buttonLabel) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                            [interaction.guild.id, row?.feedbackChannel || null, row?.logChannel || null, roleId, row?.embedTitle || null, row?.embedDescription || null, row?.embedColor || null, row?.embedImage || null, row?.buttonEmoji || null, row?.buttonLabel || null]);
                     });
                     return interaction.reply({ content: `✅ Cargo Staff configurado: <@&${roleId}>`, ephemeral: true });
                 }
@@ -260,14 +286,12 @@ export default (client) => {
         if (client.feedbackStep[userId] && msg.channel.isThread() && msg.channel.name.includes("feedback")) {
             const step = client.feedbackStep[userId];
 
-            // ETAPA 1 -> Recebeu Celular, pede o texto
             if (step === "phone") {
                 client.feedbackPhone[userId] = msg.content;
                 client.feedbackStep[userId] = "text";
                 return msg.channel.send({ content: `<@${userId}>`, embeds: [new EmbedBuilder().setColor("#FFFFFF").setDescription("<a:emoji_60:1482141690721734776> `Agora Envie Seu Feedback`")] });
             }
 
-            // ETAPA 2 -> Recebeu texto, pede o vídeo com o botão de Pular
             if (step === "text") {
                 client.feedbackText[userId] = msg.content;
                 client.feedbackStep[userId] = "media";
@@ -281,7 +305,6 @@ export default (client) => {
                 return msg.channel.send({ content: `<@${userId}>`, embeds: [embedPasso3], components: [rowPular] });
             }
 
-            // ETAPA 3 -> Processa o Vídeo
             if (step === "media") {
                 if (msg.attachments.size === 0) {
                     return msg.channel.send({ content: `<@${userId}>`, embeds: [new EmbedBuilder().setColor("#ff0000").setDescription("❌ Por favor, envie um **arquivo de vídeo** ou clique no botão 'Enviar sem Vídeo'.")] });
@@ -294,7 +317,7 @@ export default (client) => {
                 }
 
                 client.feedbackMedia[userId] = anexo.url;
-                await enviarParaLogs(msg.guild, msg.author, msg.channel, true);
+                await enviarFeedbackFinal(msg.guild, msg.author, msg.channel, true);
             }
         }
     });
