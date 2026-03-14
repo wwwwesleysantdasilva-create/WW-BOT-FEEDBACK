@@ -16,7 +16,6 @@ import db from "../database/db.js"
 
 export default (client) => {
 
-    // Inicialização do banco com colunas extras
     db.serialize(() => {
         db.run(`ALTER TABLE config ADD COLUMN staffRole TEXT`, (err) => {});
         db.run(`ALTER TABLE config ADD COLUMN logChannel TEXT`, (err) => {});
@@ -27,8 +26,7 @@ export default (client) => {
     client.feedbackPhone ??= {}
     client.feedbackText ??= {} 
 
-    // === LINKS E TEXTOS PADRÃO ===
-    const IMG_PAINEL_CONTROL = "https://cdn.discordapp.com/attachments/1457915880481624094/1482260307454726164/IMG_2287.jpg?ex=69b64dfc&is=69b4fc7c&hm=284817a4ecd31c1bd5e0bea4f62ec7a9ca28a5baf61d8c97ca1318bd9d4d499a&";
+    const IMG_PAINEL_CONTROL = "https://cdn.discordapp.com/attachments/1457915880481624094/1482260307454726164/IMG_2287.jpg";
     const IMG_FEEDBACK_PADRAO = "https://cdn.discordapp.com/attachments/1457915880481624094/1482256686008766495/IMG_2285.png";
     
     const TEXTO_FEEDBACK_PADRAO = "** Bem Vindo ao painel De feedbacks **\n\n<:emoji_40:1478558562010534088> Caso queira deixar um **Feedback** Clique no botão abaixo !";
@@ -42,20 +40,19 @@ export default (client) => {
             const canalAlvo = guild.channels.cache.get(row.feedbackChannel);
             if (!canalAlvo) return thread.send("❌ Erro: Canal não encontrado.");
 
-            const embedFinal = new EmbedBuilder()
-                .setTitle("⭐ Novo Feedback")
-                .addFields(
-                    { name: "📱 iPhone", value: client.feedbackPhone[userId] || "Não informado", inline: true },
-                    { name: "💬 Feedback", value: client.feedbackText[userId] || "Sem texto", inline: false }
-                )
-                .setThumbnail(author.displayAvatarURL())
-                .setColor("#FFFFFF")
-                .setFooter({ text: `Usuário: ${author.tag}` });
+            // MENSAGEM BONITA SEM EMBED PARA O VÍDEO CARREGAR
+            const mensagemFormatada = [
+                `<a:emoji_51:1478562639163424899> **Novo Feedback !**`,
+                ``,
+                `<:emoji_39:1478558484088885298> **Cliente :** <@${userId}>`,
+                `<:emoji_68:1482270690710130740> **Iphone :** ${client.feedbackPhone[userId] || "Não informado"}`,
+                `<:emoji_64:1482158347363815475> **Feedback :** ${client.feedbackText[userId] || "Sem texto"}`,
+                ``,
+                temVideo ? client.feedbackMedia[userId] : ""
+            ].join("\n");
 
-            const midia = (temVideo && client.feedbackMedia[userId]) ? client.feedbackMedia[userId] : null;
-            await canalAlvo.send({ content: midia, embeds: [embedFinal] });
+            await canalAlvo.send({ content: mensagemFormatada });
             
-            // MENSAGEM DE CONCLUSÃO ATUALIZADA
             await thread.send("<a:emoji_52:1478562660105719808> Muito Obrigado pelo Seu **feedback ** Ele sera enviado no canal <#1465774134989689084>");
 
             delete client.feedbackStep[userId]; delete client.feedbackMedia[userId];
@@ -92,12 +89,12 @@ export default (client) => {
                 if (interaction.customId === "btn_canais") {
                     const m1 = new ActionRowBuilder().addComponents(new ChannelSelectMenuBuilder().setCustomId("sel_logs").setPlaceholder("Selecionar Canal de Logs"));
                     const m2 = new ActionRowBuilder().addComponents(new ChannelSelectMenuBuilder().setCustomId("sel_feed").setPlaceholder("Selecionar Canal de Feedbacks"));
-                    return interaction.reply({ content: "📢 **Configuração de Canais:**", components: [m1, m2], ephemeral: true });
+                    return interaction.reply({ content: "📢 **Canais:**", components: [m1, m2], ephemeral: true });
                 }
 
                 if (interaction.customId === "btn_staff") {
                     const r = new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId("sel_role").setPlaceholder("Selecionar Cargo Staff"));
-                    return interaction.reply({ content: "👥 **Configuração de Staff:**", components: [r], ephemeral: true });
+                    return interaction.reply({ content: "👥 **Staff:**", components: [r], ephemeral: true });
                 }
 
                 if (interaction.customId === "btn_aparencia") {
@@ -146,7 +143,6 @@ export default (client) => {
                 }
             }
 
-            /* ================= SALVAMENTO ================= */
             if (interaction.isModalSubmit() && interaction.customId === "mod_aparencia") {
                 const [t, d, c, i, e] = ["f_t", "f_d", "f_c", "f_i", "f_e"].map(id => interaction.fields.getTextInputValue(id));
                 db.get(`SELECT * FROM config WHERE guild=?`, [interaction.guild.id], (err, row) => {
@@ -176,7 +172,6 @@ export default (client) => {
         } catch (e) { console.error(e); }
     });
 
-    /* ================= TICKET FLOW ATUALIZADO ================= */
     client.on("messageCreate", async msg => {
         if (msg.author.bot || !msg.guild) return;
         const uid = msg.author.id;
