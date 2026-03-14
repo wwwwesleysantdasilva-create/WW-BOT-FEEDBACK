@@ -84,7 +84,6 @@ export default (client) => {
 
                     const imagemPainel = "https://cdn.discordapp.com/attachments/1457915880481624094/1481517561253466213/IMG_2135.jpg?ex=69b5947f&is=69b442ff&hm=76eee3dcea3d75d1afe09d0ee20faa41c36fc216b8b1ce4e4775283cc275f2e3&";
 
-                    // Fileira 1 atualizada: O botão "Canais" agora substitui os dois antigos de canais.
                     const row1 = new ActionRowBuilder().addComponents(
                         new ButtonBuilder().setCustomId("config_channels").setLabel("Canais").setEmoji("<:emoji_63:1482158321120051290>").setStyle(ButtonStyle.Primary),
                         new ButtonBuilder().setCustomId("config_role").setLabel("Cargo staff").setEmoji("<:emoji_3:1465361454269075720>").setStyle(ButtonStyle.Primary)
@@ -95,7 +94,8 @@ export default (client) => {
                         new ButtonBuilder().setCustomId("send_embed").setLabel("Enviar Embed").setEmoji("<a:emoji_60:1482141690721734776>").setStyle(ButtonStyle.Success)
                     );
 
-                    return interaction.reply({ content: imagemPainel, components: [row1, row2], ephemeral: false });
+                    // AQUI: Voltou a ser ephemeral: true (Privado)
+                    return interaction.reply({ content: imagemPainel, components: [row1, row2], ephemeral: true });
                 }
 
                 if (interaction.commandName === "fechar") {
@@ -123,7 +123,6 @@ export default (client) => {
                     return;
                 }
 
-                // NOVO BOTÃO DE CANAIS (Abre os dois menus juntos)
                 if (interaction.customId === "config_channels") {
                     const menuLogs = new ChannelSelectMenuBuilder()
                         .setCustomId("select_log_channel")
