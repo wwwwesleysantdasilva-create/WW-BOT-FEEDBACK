@@ -16,7 +16,7 @@ import db from "../database/db.js"
 
 export default (client) => {
 
-    // Garante que as colunas existam
+    // Garante que as colunas existam no banco de dados
     db.run(`ALTER TABLE config ADD COLUMN staffRole TEXT`, (err) => {});
     db.run(`ALTER TABLE config ADD COLUMN logChannel TEXT`, (err) => {});
 
@@ -25,9 +25,9 @@ export default (client) => {
     client.feedbackPhone ??= {}
     client.feedbackText ??= {} 
 
-    // IMAGENS PADRÃO ATUALIZADAS
-    const imgPainelAdmin = "https://cdn.discordapp.com/attachments/1472254363274838018/1482253800596045844/IMG_2284.png?ex=69b647ed&is=69b4f66d&hm=9b9b85085794067991560fd3f092374720f955bd4005c69fe9094dc472caa91f&";
-    const imgEmbedMembros = "https://cdn.discordapp.com/attachments/1472254363274838018/1482254045312979075/IMG_2281.png?ex=69b64827&is=69b4f6a7&hm=09260c3ef7b2fe6ce015255c3fdd0474b0bef37c9c3c2aaabb88fe792d4b8e3a&";
+    // === IMAGENS PADRÃO OFICIAIS ATUALIZADAS ===
+    const imgPainelAdmin = "https://cdn.discordapp.com/attachments/1457915880481624094/1482256692346621993/IMG_2284.png?ex=69b64a9e&is=69b4f91e&hm=ffe04221aa793c16d05d59e5bdfae912da70dd1786e7ccc5e7d939d1bebb8b7f&";
+    const imgEmbedMembros = "https://cdn.discordapp.com/attachments/1457915880481624094/1482256686008766495/IMG_2285.png?ex=69b64a9c&is=69b4f91c&hm=72a8f655d6bda7b99b1d48b7f0957bbc24731e2a8eaf27bc9c404892e78ee849&";
     
     const descPadrao = "<:emoji_40:1478558562010534088> Gostou Do nosso produto? Envie Seu **Feedback**";
     const emojiBtnPadrao = "<:emoji_65:1482230136538529942>";
