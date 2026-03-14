@@ -19,7 +19,7 @@ export default (client) => {
     client.feedbackStep ??= {}
     client.feedbackMedia ??= {}
     client.feedbackPhone ??= {}
-    client.feedbackText ??= {} // Nova memória para guardar o texto do feedback
+    client.feedbackText ??= {} 
 
     /* =====================================================================
        EVENTO 1: INTERAÇÕES (Comandos, Botões, Menus e Modais)
@@ -27,8 +27,10 @@ export default (client) => {
     client.on("interactionCreate", async interaction => {
 
         try {
-            /* ================= SLASH COMMAND ================= */
+            /* ================= SLASH COMMANDS ================= */
             if (interaction.isChatInputCommand()) {
+                
+                // COMANDO: /painel
                 if (interaction.commandName === "painel") {
 
                     if (!interaction.member.permissions.has("Administrator")) {
@@ -38,7 +40,6 @@ export default (client) => {
                         });
                     }
 
-                    // PAINEL: APENAS A IMAGEM
                     const imagemPainel = "https://cdn.discordapp.com/attachments/1457915880481624094/1481517561253466213/IMG_2135.jpg?ex=69b5947f&is=69b442ff&hm=76eee3dcea3d75d1afe09d0ee20faa41c36fc216b8b1ce4e4775283cc275f2e3&";
 
                     const row1 = new ActionRowBuilder().addComponents(
@@ -65,12 +66,45 @@ export default (client) => {
                         ephemeral: true
                     });
                 }
+
+                // COMANDO: /fechar (Para fechar o tópico de feedback)
+                if (interaction.commandName === "fechar") {
+                    if (!interaction.channel.isThread() || !interaction.channel.name.includes("feedback")) {
+                        return interaction.reply({ 
+                            content: "❌ Este comando só pode ser usado dentro de um tópico de feedback.", 
+                            ephemeral: true 
+                        });
+                    }
+
+                    await interaction.reply("🔒 Fechando este tópico em 3 segundos...");
+                    
+                    setTimeout(() => {
+                        interaction.channel.delete().catch(console.error);
+                    }, 3000);
+                    return;
+                }
             }
 
             /* ================= BOTÕES ================= */
             if (interaction.isButton()) {
 
                 const userId = interaction.user.id
+
+                // Botão para fechar o tópico (Caso o membro queira cancelar)
+                if (interaction.customId === "close_feedback") {
+                    await interaction.reply("🔒 Cancelando e fechando este tópico em 3 segundos...");
+                    
+                    // Limpa a memória para não bugar futuros tickets
+                    delete client.feedbackStep[userId];
+                    delete client.feedbackMedia[userId];
+                    delete client.feedbackPhone[userId];
+                    delete client.feedbackText[userId];
+
+                    setTimeout(() => {
+                        interaction.channel.delete().catch(console.error);
+                    }, 3000);
+                    return;
+                }
 
                 if (interaction.customId === "config_channel") {
                     const menu = new ChannelSelectMenuBuilder()
@@ -185,48 +219,41 @@ export default (client) => {
                         } catch (erroEmbed) {
                             console.error("Erro ao gerar a embed:", erroEmbed);
                             return interaction.reply({
-                                content: "❌ Ocorreu um erro ao montar a Embed. Verifique se a cor HEX e a URL da Imagem estão corretas em 'Configurar Aparência'.",
+                                content: "❌ Ocorreu um erro ao montar a Embed. Verifique as configurações.",
                                 ephemeral: true
                             });
                         }
                     });
                 }
 
-                // === INÍCIO DO SISTEMA DE TICKET PRIVADO ===
+                // === INÍCIO DO SISTEMA DE TÓPICO PRIVADO (THREAD) ===
                 if (interaction.customId === "start_feedback") {
-                    const guild = interaction.guild;
                     const user = interaction.user;
 
-                    // O bot verifica se o usuário já tem canal pelo seu passo a passo ou pelo nome
-                    if (client.feedbackStep[user.id]) {
+                    // Verifica se o usuário já tem um tópico ativo no canal
+                    const threadNome = `💚-feedback-${user.username}`;
+                    const canalExistente = interaction.channel.threads.cache.find(c => c.name === threadNome);
+                    
+                    if (canalExistente || client.feedbackStep[user.id]) {
                         return interaction.reply({
-                            content: `❌ Você já tem um feedback em andamento!`,
+                            content: `❌ Você já tem um tópico de feedback aberto!`,
                             ephemeral: true
                         });
                     }
 
-                    // Formata o nome do canal: 💚-feedback-nomedousuario (Discord formata automático)
-                    const novoCanal = await guild.channels.create({
-                        name: `💚-feedback-${user.username}`,
-                        type: ChannelType.GuildText,
-                        permissionOverwrites: [
-                            {
-                                id: guild.roles.everyone.id,
-                                deny: [PermissionFlagsBits.ViewChannel],
-                            },
-                            {
-                                id: user.id,
-                                allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.AttachFiles],
-                            },
-                            {
-                                id: interaction.client.user.id,
-                                allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageChannels],
-                            }
-                        ]
+                    // Cria o Tópico Privado no mesmo canal da mensagem
+                    const novoTopico = await interaction.channel.threads.create({
+                        name: threadNome,
+                        autoArchiveDuration: 60,
+                        type: ChannelType.PrivateThread, // Tópico invisível para quem não for adicionado
+                        reason: `Ticket de feedback para ${user.username}`
                     });
 
+                    // Adiciona o membro dentro do tópico privado
+                    await novoTopico.members.add(user.id);
+
                     interaction.reply({
-                        content: `✅ Canal criado! Vá para <#${novoCanal.id}> para iniciar.`,
+                        content: `✅ Tópico criado! Vá para <#${novoTopico.id}> para iniciar.`,
                         ephemeral: true
                     });
 
@@ -237,9 +264,18 @@ export default (client) => {
                         .setColor("#FFFFFF")
                         .setDescription("<:emoji_35:1477664716204540118> Informe Seu Celular");
 
-                    return novoCanal.send({
-                        content: `<@${user.id}>`, // Marca o usuário fora da embed
-                        embeds: [embedPasso1]
+                    const rowClose = new ActionRowBuilder().addComponents(
+                        new ButtonBuilder()
+                            .setCustomId("close_feedback")
+                            .setLabel("Cancelar / Fechar")
+                            .setEmoji("🔒")
+                            .setStyle(ButtonStyle.Danger)
+                    );
+
+                    return novoTopico.send({
+                        content: `<@${user.id}>`, 
+                        embeds: [embedPasso1],
+                        components: [rowClose] // Botão de fechar incluído na primeira mensagem!
                     });
                 }
             }
@@ -324,8 +360,8 @@ export default (client) => {
 
         const userId = msg.author.id;
 
-        // Verifica se a mensagem está no canal de feedback e se o usuário está no fluxo
-        if (client.feedbackStep[userId] && msg.channel.name.includes("feedback")) {
+        // Verifica se a mensagem está no Tópico de feedback e se o usuário está no fluxo
+        if (client.feedbackStep[userId] && msg.channel.isThread() && msg.channel.name.includes("feedback")) {
 
             const step = client.feedbackStep[userId];
 
@@ -359,7 +395,7 @@ export default (client) => {
                 });
             }
 
-            // PASSO 3 - Recebe a Mídia, envia para o mural e fecha o canal
+            // PASSO 3 - Recebe a Mídia, envia para o mural e fecha o tópico
             if (step === "media") {
                 if (msg.attachments.size === 0) {
                     const embedErro = new EmbedBuilder()
@@ -386,7 +422,7 @@ export default (client) => {
                         return msg.reply("❌ Canal oficial de feedbacks não encontrado.");
                     }
 
-                    // A Embed que vai para o Mural Público (Mudei pra branco aqui também pra combinar com o padrão)
+                    // A Embed final
                     const embedFinal = new EmbedBuilder()
                         .setTitle("⭐ Novo Feedback")
                         .addFields(
@@ -408,9 +444,9 @@ export default (client) => {
 
                     await channel.send({ embeds: [embedFinal] });
 
-                    await msg.channel.send("✅ Seu feedback foi enviado com sucesso! Fechando este canal em 3 segundos...");
+                    await msg.channel.send("✅ Seu feedback foi enviado com sucesso! Fechando este tópico em 3 segundos...");
 
-                    // Limpa a memória para esse usuário poder abrir outro ticket depois
+                    // Limpa a memória
                     delete client.feedbackStep[userId];
                     delete client.feedbackMedia[userId];
                     delete client.feedbackPhone[userId];
