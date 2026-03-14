@@ -90,20 +90,23 @@ export default (client) => {
                         .setCustomId("modal_config_submit")
                         .setTitle("Configurar Embed");
 
-                    const textInput = new TextInputBuilder()
-                        .setCustomId("input_texto")
-                        .setLabel("Título | Descrição")
-                        .setPlaceholder("Ex: Meu Título | Minha descrição aqui...")
-                        .setStyle(TextInputStyle.Paragraph)
-                        .setRequired(false);
-
-                    const imageInput = new TextInputBuilder()
-                        .setCustomId("input_imagem")
-                        .setLabel("Link da Imagem")
-                        .setPlaceholder("Ex: https://meusite.com/imagem.png")
+                    // 1. Título
+                    const tituloInput = new TextInputBuilder()
+                        .setCustomId("input_titulo")
+                        .setLabel("Título")
+                        .setPlaceholder("Ex: Envie seu Feedback")
                         .setStyle(TextInputStyle.Short)
                         .setRequired(false);
 
+                    // 2. Descrição
+                    const descInput = new TextInputBuilder()
+                        .setCustomId("input_descricao")
+                        .setLabel("Descrição")
+                        .setPlaceholder("Ex: Clique no botão abaixo para nos avaliar.")
+                        .setStyle(TextInputStyle.Paragraph)
+                        .setRequired(false);
+
+                    // 3. Cor
                     const colorInput = new TextInputBuilder()
                         .setCustomId("input_cor")
                         .setLabel("Cor HEX")
@@ -111,19 +114,29 @@ export default (client) => {
                         .setStyle(TextInputStyle.Short)
                         .setRequired(false);
 
-                    const buttonInput = new TextInputBuilder()
-                        .setCustomId("input_botao")
-                        .setLabel("Botão (Emoji | Texto)")
-                        .setPlaceholder("Ex: ⭐ | Enviar Feedback")
+                    // 4. Link da Imagem
+                    const imageInput = new TextInputBuilder()
+                        .setCustomId("input_imagem")
+                        .setLabel("Link da Imagem")
+                        .setPlaceholder("Ex: https://meusite.com/imagem.png")
                         .setStyle(TextInputStyle.Short)
                         .setRequired(false);
 
-                    const row1 = new ActionRowBuilder().addComponents(textInput);
-                    const row2 = new ActionRowBuilder().addComponents(imageInput);
-                    const row3 = new ActionRowBuilder().addComponents(colorInput);
-                    const row4 = new ActionRowBuilder().addComponents(buttonInput);
+                    // 5. Emoji do Botão
+                    const emojiInput = new TextInputBuilder()
+                        .setCustomId("input_emoji")
+                        .setLabel("Emoji do Botão")
+                        .setPlaceholder("Ex: ⭐ ou <:emoji_id:123456789>")
+                        .setStyle(TextInputStyle.Short)
+                        .setRequired(false);
 
-                    modal.addComponents(row1, row2, row3, row4);
+                    const row1 = new ActionRowBuilder().addComponents(tituloInput);
+                    const row2 = new ActionRowBuilder().addComponents(descInput);
+                    const row3 = new ActionRowBuilder().addComponents(colorInput);
+                    const row4 = new ActionRowBuilder().addComponents(imageInput);
+                    const row5 = new ActionRowBuilder().addComponents(emojiInput);
+
+                    modal.addComponents(row1, row2, row3, row4, row5);
 
                     return interaction.showModal(modal);
                 }
@@ -233,26 +246,15 @@ export default (client) => {
             /* ================= RECEBENDO O MODAL ================= */
             if (interaction.isModalSubmit()) {
                 if (interaction.customId === "modal_config_submit") {
-                    const textoRaw = interaction.fields.getTextInputValue("input_texto");
-                    const imagem = interaction.fields.getTextInputValue("input_imagem");
-                    const cor = interaction.fields.getTextInputValue("input_cor");
-                    const botaoRaw = interaction.fields.getTextInputValue("input_botao");
-
-                    let titulo = "⭐ Envie seu Feedback";
-                    let descricao = "Clique no botão abaixo.";
-                    if (textoRaw) {
-                        const partes = textoRaw.split("|").map(p => p.trim());
-                        titulo = partes[0] || titulo;
-                        descricao = partes[1] || descricao;
-                    }
-
-                    let emojiBotao = "⭐";
-                    let textoBotao = "Enviar Feedback";
-                    if (botaoRaw) {
-                        const partes = botaoRaw.split("|").map(p => p.trim());
-                        emojiBotao = partes[0] || emojiBotao;
-                        textoBotao = partes[1] || textoBotao;
-                    }
+                    
+                    const titulo = interaction.fields.getTextInputValue("input_titulo") || "⭐ Envie seu Feedback";
+                    const descricao = interaction.fields.getTextInputValue("input_descricao") || "Clique no botão abaixo.";
+                    const cor = interaction.fields.getTextInputValue("input_cor") || "#ffffff";
+                    const imagem = interaction.fields.getTextInputValue("input_imagem") || null;
+                    const emojiBotao = interaction.fields.getTextInputValue("input_emoji") || "⭐";
+                    
+                    // O texto do botão ficará como padrão "Enviar Feedback" já que você pediu só o emoji
+                    const textoBotao = "Enviar Feedback"; 
 
                     db.get(`SELECT * FROM config WHERE guild=?`, [interaction.guild.id], (err, row) => {
                         db.run(
@@ -263,8 +265,8 @@ export default (client) => {
                                 row?.feedbackChannel || null, 
                                 titulo, 
                                 descricao, 
-                                cor || "#ffffff", 
-                                imagem || null, 
+                                cor, 
+                                imagem, 
                                 emojiBotao, 
                                 textoBotao
                             ]
