@@ -16,202 +16,197 @@ import db from "../database/db.js"
 
 export default (client) => {
 
-    // Garante que as colunas existam no banco de dados
-    db.run(`ALTER TABLE config ADD COLUMN staffRole TEXT`, (err) => {});
-    db.run(`ALTER TABLE config ADD COLUMN logChannel TEXT`, (err) => {});
+    // Inicialização e Verificação de Colunas no Banco
+    db.serialize(() => {
+        db.run(`ALTER TABLE config ADD COLUMN staffRole TEXT`, (err) => {});
+        db.run(`ALTER TABLE config ADD COLUMN logChannel TEXT`, (err) => {});
+    });
 
     client.feedbackStep ??= {}
     client.feedbackMedia ??= {}
     client.feedbackPhone ??= {}
     client.feedbackText ??= {} 
 
-    // === IMAGENS PADRÃO OFICIAIS ATUALIZADAS ===
-    const imgPainelAdmin = "https://cdn.discordapp.com/attachments/1457915880481624094/1482256692346621993/IMG_2284.png?ex=69b64a9e&is=69b4f91e&hm=ffe04221aa793c16d05d59e5bdfae912da70dd1786e7ccc5e7d939d1bebb8b7f&";
-    const imgEmbedMembros = "https://cdn.discordapp.com/attachments/1457915880481624094/1482256686008766495/IMG_2285.png?ex=69b64a9c&is=69b4f91c&hm=72a8f655d6bda7b99b1d48b7f0957bbc24731e2a8eaf27bc9c404892e78ee849&";
+    // === CONFIGURAÇÕES PADRÃO (Mídias e Textos) ===
+    const IMG_PAINEL_CONTROL = "https://cdn.discordapp.com/attachments/1457915880481624094/1482260307228364860/IMG_2287.png?ex=69b64dfc&is=69b4fc7c&hm=368b19688147d159114d2360f0d2c2538006e885bc6723f5b74686411516e680&";
+    const IMG_FEEDBACK_PADRAO = "https://cdn.discordapp.com/attachments/1457915880481624094/1482259209054715924/IMG_2286.jpg?ex=69b64cf6&is=69b4fb76&hm=ba88a6753e825ab18f3191a6e74793203cab0462c3d8601e08369430eda6e95a&";
     
-    const descPadrao = "<:emoji_40:1478558562010534088> Gostou Do nosso produto? Envie Seu **Feedback**";
-    const emojiBtnPadrao = "<:emoji_65:1482230136538529942>";
-    const textoBtnPadrao = "Enviar Feedback";
+    const TEXTO_FEEDBACK_PADRAO = "** Bem Vindo ao painel De feedbacks **\n\n<:emoji_40:1478558562010534088> Caso queira deixar um **Feedback** Clique no botão abaixo !";
+    const EMOJI_BTN_PADRAO = "<:emoji_65:1482230136538529942>";
+    const TEXTO_BTN_PADRAO = "Enviar Feedback";
 
-    const enviarFeedbackFinal = async (guild, author, threadChannel, hasVideo) => {
+    // FUNÇÃO PARA FINALIZAR E ENVIAR O FEEDBACK
+    const finalizarFeedback = async (guild, author, thread, temVideo) => {
         const userId = author.id;
-
         db.get(`SELECT feedbackChannel FROM config WHERE guild=?`, [guild.id], async (err, row) => {
-            if (!row?.feedbackChannel) return threadChannel.send("❌ O canal oficial de feedbacks não foi configurado!");
+            if (!row?.feedbackChannel) return thread.send("❌ Canal de feedbacks não configurado no painel admin.");
+            
+            const canalAlvo = guild.channels.cache.get(row.feedbackChannel);
+            if (!canalAlvo) return thread.send("❌ Canal de feedbacks não encontrado.");
 
-            const channel = guild.channels.cache.get(row.feedbackChannel);
-            if (!channel) return threadChannel.send("❌ Canal oficial não encontrado.");
-
-            const embedFinal = new EmbedBuilder()
-                .setTitle("⭐ Novo Feedback")
+            const embedLogs = new EmbedBuilder()
+                .setTitle("⭐ Novo Feedback Recebido")
                 .addFields(
                     { name: "📱 Celular", value: client.feedbackPhone[userId] || "Não informado", inline: true },
-                    { name: "💬 Feedback", value: client.feedbackText[userId] || "Sem texto", inline: false }
+                    { name: "💬 Relato", value: client.feedbackText[userId] || "Sem texto", inline: false }
                 )
                 .setThumbnail(author.displayAvatarURL())
-                .setColor("#FFFFFF") 
-                .setFooter({ text: `Enviado por: ${author.tag}` });
+                .setColor("#FFFFFF")
+                .setFooter({ text: `Usuário: ${author.tag} (${author.id})` });
 
-            const conteudoVideo = (hasVideo && client.feedbackMedia[userId]) ? client.feedbackMedia[userId] : null;
-            await channel.send({ content: conteudoVideo, embeds: [embedFinal] });
+            const midia = (temVideo && client.feedbackMedia[userId]) ? client.feedbackMedia[userId] : null;
 
-            await threadChannel.send("✅ Seu feedback foi enviado com sucesso! Fechando este tópico em 3 segundos...");
+            await canalAlvo.send({ content: midia, embeds: [embedLogs] });
+            await thread.send("✅ **Sucesso!** Seu feedback foi enviado. Fechando em 3s...");
 
-            delete client.feedbackStep[userId];
-            delete client.feedbackMedia[userId];
-            delete client.feedbackPhone[userId];
-            delete client.feedbackText[userId];
-
-            setTimeout(() => threadChannel.delete().catch(console.error), 3000);
+            // Limpeza de memória
+            delete client.feedbackStep[userId]; delete client.feedbackMedia[userId];
+            delete client.feedbackPhone[userId]; delete client.feedbackText[userId];
+            
+            setTimeout(() => thread.delete().catch(() => {}), 3000);
         });
     };
 
     client.on("interactionCreate", async interaction => {
         try {
-            /* ================= SLASH COMMANDS ================= */
             if (interaction.isChatInputCommand()) {
                 if (interaction.commandName === "painel") {
-                    if (!interaction.member.permissions.has("Administrator")) return interaction.reply({ content: "❌ Apenas administradores.", ephemeral: true });
+                    if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) return interaction.reply({ content: "❌ Acesso Negado.", ephemeral: true });
 
-                    const row1 = new ActionRowBuilder().addComponents(
-                        new ButtonBuilder().setCustomId("config_channels").setLabel("Canais").setEmoji("<:emoji_63:1482158321120051290>").setStyle(ButtonStyle.Primary),
-                        new ButtonBuilder().setCustomId("config_role").setLabel("Cargo staff").setEmoji("<:emoji_3:1465361454269075720>").setStyle(ButtonStyle.Primary)
+                    const r1 = new ActionRowBuilder().addComponents(
+                        new ButtonBuilder().setCustomId("btn_canais").setLabel("Canais").setEmoji("<:emoji_63:1482158321120051290>").setStyle(ButtonStyle.Primary),
+                        new ButtonBuilder().setCustomId("btn_staff").setLabel("Cargo staff").setEmoji("<:emoji_3:1465361454269075720>").setStyle(ButtonStyle.Primary)
                     );
-                    const row2 = new ActionRowBuilder().addComponents(
-                        new ButtonBuilder().setCustomId("config_embed_modal").setLabel("Configurar Aparência").setEmoji("<:emoji_62:1482158294649934017>").setStyle(ButtonStyle.Secondary),
-                        new ButtonBuilder().setCustomId("send_embed").setLabel("Enviar Embed").setEmoji("<a:emoji_60:1482141690721734776>").setStyle(ButtonStyle.Success)
+                    const r2 = new ActionRowBuilder().addComponents(
+                        new ButtonBuilder().setCustomId("btn_aparencia").setLabel("Configurar Aparência").setEmoji("<:emoji_62:1482158294649934017>").setStyle(ButtonStyle.Secondary),
+                        new ButtonBuilder().setCustomId("btn_enviar").setLabel("Enviar Embed").setEmoji("<a:emoji_60:1482141690721734776>").setStyle(ButtonStyle.Success)
                     );
-                    return interaction.reply({ content: imgPainelAdmin, components: [row1, row2], ephemeral: true });
+                    return interaction.reply({ content: IMG_PAINEL_CONTROL, components: [r1, r2], ephemeral: true });
                 }
 
                 if (interaction.commandName === "fechar") {
-                    if (!interaction.channel.isThread() || !interaction.channel.name.includes("feedback")) return interaction.reply({ content: "❌ Use apenas em tópicos de feedback.", ephemeral: true });
-                    await interaction.reply("🔒 Fechando...");
-                    setTimeout(() => interaction.channel.delete().catch(console.error), 3000);
+                    if (!interaction.channel.isThread()) return interaction.reply({ content: "❌ Comando apenas para tópicos.", ephemeral: true });
+                    await interaction.reply("🔒 Fechando atendimento...");
+                    setTimeout(() => interaction.channel.delete().catch(() => {}), 2000);
                 }
             }
 
-            /* ================= BOTÕES ================= */
             if (interaction.isButton()) {
-                const userId = interaction.user.id;
+                const uid = interaction.user.id;
 
                 if (interaction.customId === "skip_video") {
                     await interaction.deferUpdate();
-                    client.feedbackMedia[userId] = null;
-                    await enviarFeedbackFinal(interaction.guild, interaction.user, interaction.channel, false);
+                    await finalizarFeedback(interaction.guild, interaction.user, interaction.channel, false);
                 }
 
-                if (interaction.customId === "config_channels") {
-                    const row1 = new ActionRowBuilder().addComponents(new ChannelSelectMenuBuilder().setCustomId("select_log_channel").setPlaceholder("Canal de LOGS").setChannelTypes(ChannelType.GuildText));
-                    const row2 = new ActionRowBuilder().addComponents(new ChannelSelectMenuBuilder().setCustomId("select_feedback_channel").setPlaceholder("Canal de FEEDBACKS").setChannelTypes(ChannelType.GuildText));
-                    return interaction.reply({ content: "📢 Selecione os canais:", components: [row1, row2], ephemeral: true });
+                if (interaction.customId === "btn_canais") {
+                    const m1 = new ActionRowBuilder().addComponents(new ChannelSelectMenuBuilder().setCustomId("sel_logs").setPlaceholder("Canal de Logs Internos"));
+                    const m2 = new ActionRowBuilder().addComponents(new ChannelSelectMenuBuilder().setCustomId("sel_feed").setPlaceholder("Canal de Feedbacks Públicos"));
+                    return interaction.reply({ content: "⚙️ **Configuração de Destinos:**", components: [m1, m2], ephemeral: true });
                 }
 
-                if (interaction.customId === "config_role") {
-                    const menu = new RoleSelectMenuBuilder().setCustomId("select_staff_role").setPlaceholder("Selecione o cargo Staff");
-                    return interaction.reply({ content: "👥 Escolha o cargo:", components: [new ActionRowBuilder().addComponents(menu)], ephemeral: true });
+                if (interaction.customId === "btn_staff") {
+                    const r = new ActionRowBuilder().addComponents(new RoleSelectMenuBuilder().setCustomId("sel_role").setPlaceholder("Selecione o Cargo Staff"));
+                    return interaction.reply({ content: "👥 **Configuração de Equipe:**", components: [r], ephemeral: true });
                 }
 
-                if (interaction.customId === "config_embed_modal") {
-                    const modal = new ModalBuilder().setCustomId("modal_config_submit").setTitle("Configurar Embed");
+                if (interaction.customId === "btn_aparencia") {
+                    const modal = new ModalBuilder().setCustomId("mod_aparencia").setTitle("Customizar Embed");
                     modal.addComponents(
-                        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("input_titulo").setLabel("Título").setStyle(TextInputStyle.Short).setRequired(false)),
-                        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("input_descricao").setLabel("Descrição").setStyle(TextInputStyle.Paragraph).setRequired(false)),
-                        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("input_cor").setLabel("Cor HEX").setStyle(TextInputStyle.Short).setRequired(false)),
-                        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("input_imagem").setLabel("Banner").setStyle(TextInputStyle.Short).setRequired(false)),
-                        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("input_emoji").setLabel("Emoji do Botão").setStyle(TextInputStyle.Short).setRequired(false))
+                        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("f_t").setLabel("Título").setStyle(TextInputStyle.Short).setRequired(false)),
+                        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("f_d").setLabel("Descrição").setStyle(TextInputStyle.Paragraph).setRequired(false)),
+                        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("f_c").setLabel("Cor HEX (Ex: #FFFFFF)").setStyle(TextInputStyle.Short).setRequired(false)),
+                        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("f_i").setLabel("URL do Banner").setStyle(TextInputStyle.Short).setRequired(false)),
+                        new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("f_e").setLabel("Emoji do Botão").setStyle(TextInputStyle.Short).setRequired(false))
                     );
                     return interaction.showModal(modal);
                 }
 
-                if (interaction.customId === "send_embed") {
+                if (interaction.customId === "btn_enviar") {
                     await interaction.deferReply({ ephemeral: true });
                     db.get(`SELECT * FROM config WHERE guild=?`, [interaction.guild.id], async (err, row) => {
-                        let corFinal = row?.embedColor || "#FFFFFF";
-                        const embed = new EmbedBuilder().setDescription(row?.embedDescription || descPadrao).setColor(corFinal.startsWith("#") ? corFinal : "#FFFFFF").setImage(row?.embedImage || imgEmbedMembros);
+                        const embed = new EmbedBuilder()
+                            .setDescription(row?.embedDescription || TEXTO_FEEDBACK_PADRAO)
+                            .setColor(row?.embedColor || "#FFFFFF")
+                            .setImage(row?.embedImage || IMG_FEEDBACK_PADRAO);
                         if (row?.embedTitle) embed.setTitle(row.embedTitle);
-                        const btn = new ButtonBuilder().setCustomId("start_feedback").setLabel(row?.buttonLabel || textoBtnPadrao).setStyle(ButtonStyle.Secondary);
-                        try { btn.setEmoji(row?.buttonEmoji || emojiBtnPadrao); } catch(e) { btn.setEmoji("⭐"); }
+                        
+                        const btn = new ButtonBuilder().setCustomId("start_feedback").setLabel(TEXTO_BTN_PADRAO).setStyle(ButtonStyle.Secondary);
+                        try { btn.setEmoji(row?.buttonEmoji || EMOJI_BTN_PADRAO); } catch(e) { btn.setEmoji("⭐"); }
+                        
                         await interaction.channel.send({ embeds: [embed], components: [new ActionRowBuilder().addComponents(btn)] });
-                        return interaction.editReply("✅ Enviado!");
+                        return interaction.editReply("✅ Painel de Feedback enviado ao canal!");
                     });
                 }
 
                 if (interaction.customId === "start_feedback") {
                     await interaction.deferReply({ ephemeral: true });
-                    const threadNome = `💚-feedback-${interaction.user.username}`;
-                    if (interaction.channel.threads.cache.find(c => c.name === threadNome)) return interaction.editReply("❌ Tópico já aberto.");
+                    const tNome = `💚-feedback-${interaction.user.username}`;
+                    if (interaction.channel.threads.cache.find(c => c.name === tNome)) return interaction.editReply("❌ Você já possui um atendimento aberto.");
+
+                    const thread = await interaction.channel.threads.create({ name: tNome, autoArchiveDuration: 60, type: ChannelType.PrivateThread });
+                    await thread.members.add(interaction.user.id);
+                    client.feedbackStep[interaction.user.id] = "phone";
 
                     db.get(`SELECT staffRole FROM config WHERE guild=?`, [interaction.guild.id], async (err, row) => {
-                        const thread = await interaction.channel.threads.create({ name: threadNome, autoArchiveDuration: 60, type: ChannelType.PrivateThread });
-                        await thread.members.add(interaction.user.id);
-                        client.feedbackStep[interaction.user.id] = "phone";
-                        const e1 = new EmbedBuilder().setColor("#FFFFFF").setDescription("<:emoji_67:1482232025363648652> Atenção! Não aceitamos fotos.");
-                        const e2 = new EmbedBuilder().setColor("#FFFFFF").setDescription("<a:emoji_60:1482141690721734776> `informe seu celular`");
-                        await thread.send({ content: `<@${interaction.user.id}>${row?.staffRole ? ` | <@&${row.staffRole}>` : ""}`, embeds: [e1, e2] });
-                        return interaction.editReply(`✅ Criado: <#${thread.id}>`);
+                        const av1 = new EmbedBuilder().setColor("#FFFFFF").setDescription("<:emoji_67:1482232025363648652> Atenção ao enviar Seu feedback , Nao aceitamos foto como feedbacks!!");
+                        const av2 = new EmbedBuilder().setColor("#FFFFFF").setDescription("<a:emoji_60:1482141690721734776> `informe seu celular`");
+                        const mencao = `<@${interaction.user.id}>${row?.staffRole ? ` | <@&${row.staffRole}>` : ""}`;
+                        await thread.send({ content: mencao, embeds: [av1, av2] });
+                        return interaction.editReply(`✅ Tópico iniciado em <#${thread.id}>`);
                     });
                 }
             }
 
-            /* ================= MODAL & MENUS ================= */
-            if (interaction.isModalSubmit() && interaction.customId === "modal_config_submit") {
-                const t = interaction.fields.getTextInputValue("input_titulo") || null;
-                const d = interaction.fields.getTextInputValue("input_descricao") || null;
-                const c = interaction.fields.getTextInputValue("input_cor") || "#ffffff";
-                const i = interaction.fields.getTextInputValue("input_imagem") || null;
-                const e = interaction.fields.getTextInputValue("input_emoji") || null;
+            // --- Lógica de Menus e Modal ---
+            if (interaction.isModalSubmit() && interaction.customId === "mod_aparencia") {
+                const [t, d, c, i, e] = ["f_t", "f_d", "f_c", "f_i", "f_e"].map(f => interaction.fields.getTextInputValue(f));
                 db.get(`SELECT * FROM config WHERE guild=?`, [interaction.guild.id], (err, row) => {
                     db.run(`INSERT OR REPLACE INTO config (guild, feedbackChannel, logChannel, staffRole, embedTitle, embedDescription, embedColor, embedImage, buttonEmoji, buttonLabel) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                        [interaction.guild.id, row?.feedbackChannel || null, row?.logChannel || null, row?.staffRole || null, t, d, c, i, e, textoBtnPadrao]);
+                        [interaction.guild.id, row?.feedbackChannel, row?.logChannel, row?.staffRole, t, d, c, i, e, TEXTO_BTN_PADRAO]);
                 });
-                return interaction.reply({ content: "✅ Salvo!", ephemeral: true });
+                return interaction.reply({ content: "✅ Aparência atualizada!", ephemeral: true });
             }
 
             if (interaction.isChannelSelectMenu()) {
                 const cid = interaction.values[0];
-                const isLog = interaction.customId === "select_log_channel";
+                const isLog = interaction.customId === "sel_logs";
                 db.get(`SELECT * FROM config WHERE guild=?`, [interaction.guild.id], (err, row) => {
                     db.run(`INSERT OR REPLACE INTO config (guild, feedbackChannel, logChannel, staffRole, embedTitle, embedDescription, embedColor, embedImage, buttonEmoji, buttonLabel) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                        [interaction.guild.id, isLog ? (row?.feedbackChannel || null) : cid, isLog ? cid : (row?.logChannel || null), row?.staffRole || null, row?.embedTitle || null, row?.embedDescription || null, row?.embedColor || null, row?.embedImage || null, row?.buttonEmoji || null, row?.buttonLabel || null]);
+                        [interaction.guild.id, isLog ? row?.feedbackChannel : cid, isLog ? cid : row?.logChannel, row?.staffRole, row?.embedTitle, row?.embedDescription, row?.embedColor, row?.embedImage, row?.buttonEmoji, TEXTO_BTN_PADRAO]);
                 });
-                return interaction.reply({ content: "✅ Canal configurado!", ephemeral: true });
+                return interaction.reply({ content: `✅ Canal de ${isLog ? "Logs" : "Feedbacks"} definido!`, ephemeral: true });
             }
 
-            if (interaction.isRoleSelectMenu() && interaction.customId === "select_staff_role") {
-                const rid = interaction.values[0];
+            if (interaction.isRoleSelectMenu()) {
                 db.get(`SELECT * FROM config WHERE guild=?`, [interaction.guild.id], (err, row) => {
                     db.run(`INSERT OR REPLACE INTO config (guild, feedbackChannel, logChannel, staffRole, embedTitle, embedDescription, embedColor, embedImage, buttonEmoji, buttonLabel) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                        [interaction.guild.id, row?.feedbackChannel || null, row?.logChannel || null, rid, row?.embedTitle || null, row?.embedDescription || null, row?.embedColor || null, row?.embedImage || null, row?.buttonEmoji || null, row?.buttonLabel || null]);
+                        [interaction.guild.id, row?.feedbackChannel, row?.logChannel, interaction.values[0], row?.embedTitle, row?.embedDescription, row?.embedColor, row?.embedImage, row?.buttonEmoji, TEXTO_BTN_PADRAO]);
                 });
-                return interaction.reply({ content: "✅ Staff configurada!", ephemeral: true });
+                return interaction.reply({ content: "✅ Cargo Staff definido!", ephemeral: true });
             }
-
-        } catch (e) { console.error(e); }
+        } catch (e) { console.error("Erro Interaction:", e); }
     });
 
     client.on("messageCreate", async msg => {
         if (msg.author.bot || !msg.guild) return;
         const uid = msg.author.id;
-        if (client.feedbackStep[uid] && msg.channel.isThread() && msg.channel.name.includes("feedback")) {
+        if (client.feedbackStep[uid] && msg.channel.isThread()) {
             const step = client.feedbackStep[uid];
             if (step === "phone") {
-                client.feedbackPhone[uid] = msg.content;
-                client.feedbackStep[uid] = "text";
+                client.feedbackPhone[uid] = msg.content; client.feedbackStep[uid] = "text";
                 return msg.channel.send({ content: `<@${uid}>`, embeds: [new EmbedBuilder().setColor("#FFFFFF").setDescription("<a:emoji_60:1482141690721734776> `Agora Envie Seu Feedback`")] });
             }
             if (step === "text") {
-                client.feedbackText[uid] = msg.content;
-                client.feedbackStep[uid] = "media";
-                const r = new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId("skip_video").setLabel("Enviar sem Vídeo").setEmoji("⏭️").setStyle(ButtonStyle.Secondary));
-                return msg.channel.send({ content: `<@${uid}>`, embeds: [new EmbedBuilder().setColor("#FFFFFF").setDescription("<a:emoji_60:1482141690721734776> `Agora envie Seu Video`")], components: [r] });
+                client.feedbackText[uid] = msg.content; client.feedbackStep[uid] = "media";
+                const row = new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId("skip_video").setLabel("Enviar sem Vídeo").setStyle(ButtonStyle.Secondary).setEmoji("⏭️"));
+                return msg.channel.send({ content: `<@${uid}>`, embeds: [new EmbedBuilder().setColor("#FFFFFF").setDescription("<a:emoji_60:1482141690721734776>  `Agora envie Seu Video`")], components: [row] });
             }
             if (step === "media") {
-                if (msg.attachments.size === 0) return msg.channel.send("❌ Envie um vídeo ou pule.");
-                const a = msg.attachments.first();
-                if (!a.contentType?.startsWith("video/")) return msg.channel.send("❌ Apenas vídeos!");
-                client.feedbackMedia[uid] = a.url;
-                await enviarFeedbackFinal(msg.guild, msg.author, msg.channel, true);
+                const att = msg.attachments.first();
+                if (!att?.contentType?.startsWith("video/")) return msg.channel.send("❌ Erro: Envie um arquivo de **VÍDEO** ou clique no botão acima para pular.");
+                client.feedbackMedia[uid] = att.url;
+                await finalizarFeedback(msg.guild, msg.author, msg.channel, true);
             }
         }
     });
