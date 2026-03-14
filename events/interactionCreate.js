@@ -16,7 +16,6 @@ import db from "../database/db.js"
 
 export default (client) => {
 
-    // Inicialização segura do banco
     db.serialize(() => {
         db.run(`ALTER TABLE config ADD COLUMN staffRole TEXT`, (err) => {});
         db.run(`ALTER TABLE config ADD COLUMN logChannel TEXT`, (err) => {});
@@ -27,7 +26,7 @@ export default (client) => {
     client.feedbackPhone ??= {}
     client.feedbackText ??= {} 
 
-    // === LINKS DE IMAGEM OFICIAIS ===
+    // === LINKS DE IMAGEM OFICIAIS (REVISADOS) ===
     const IMG_PAINEL_CONTROL = "https://cdn.discordapp.com/attachments/1457915880481624094/1482260307228364860/IMG_2287.png";
     const IMG_FEEDBACK_PADRAO = "https://cdn.discordapp.com/attachments/1457915880481624094/1482259209054715924/IMG_2286.jpg";
     
@@ -67,11 +66,6 @@ export default (client) => {
             if (interaction.isChatInputCommand() && interaction.commandName === "painel") {
                 if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) return interaction.reply({ content: "❌ Sem permissão.", ephemeral: true });
 
-                // Embed para forçar a imagem do painel a aparecer sempre aberta
-                const embedImagemPainel = new EmbedBuilder()
-                    .setImage(IMG_PAINEL_CONTROL)
-                    .setColor("#2b2d31"); // Cor escura para camuflar com o fundo do Discord
-
                 const r1 = new ActionRowBuilder().addComponents(
                     new ButtonBuilder().setCustomId("btn_canais").setLabel("Canais").setEmoji("<:emoji_63:1482158321120051290>").setStyle(ButtonStyle.Primary),
                     new ButtonBuilder().setCustomId("btn_staff").setLabel("Cargo staff").setEmoji("<:emoji_3:1465361454269075720>").setStyle(ButtonStyle.Primary)
@@ -81,7 +75,8 @@ export default (client) => {
                     new ButtonBuilder().setCustomId("btn_enviar").setLabel("Enviar Embed").setEmoji("<a:emoji_60:1482141690721734776>").setStyle(ButtonStyle.Success)
                 );
 
-                return interaction.reply({ embeds: [embedImagemPainel], components: [r1, r2], ephemeral: true });
+                // Enviando como conteúdo direto para evitar o bloco cinza
+                return interaction.reply({ content: IMG_PAINEL_CONTROL, components: [r1, r2], ephemeral: true });
             }
 
             if (interaction.isButton()) {
@@ -95,7 +90,7 @@ export default (client) => {
                 if (interaction.customId === "btn_canais") {
                     const m1 = new ActionRowBuilder().addComponents(new ChannelSelectMenuBuilder().setCustomId("sel_logs").setPlaceholder("Canal de Logs Internos"));
                     const m2 = new ActionRowBuilder().addComponents(new ChannelSelectMenuBuilder().setCustomId("sel_feed").setPlaceholder("Canal de Feedbacks Públicos"));
-                    return interaction.reply({ content: "⚙️ **Canais:**", components: [m1, m2], ephemeral: true });
+                    return interaction.reply({ content: "📢 **Canais:**", components: [m1, m2], ephemeral: true });
                 }
 
                 if (interaction.customId === "btn_staff") {
@@ -149,7 +144,6 @@ export default (client) => {
                 }
             }
 
-            // Lógica de Menus e Modais igual a anterior (mantida para não perder funções)
             if (interaction.isModalSubmit() && interaction.customId === "mod_aparencia") {
                 const [t, d, c, i, e] = ["f_t", "f_d", "f_c", "f_i", "f_e"].map(f => interaction.fields.getTextInputValue(f));
                 db.get(`SELECT * FROM config WHERE guild=?`, [interaction.guild.id], (err, row) => {
