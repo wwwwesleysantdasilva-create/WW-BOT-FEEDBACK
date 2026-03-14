@@ -4,6 +4,7 @@ import {
     ButtonStyle,
     EmbedBuilder,
     ChannelSelectMenuBuilder,
+    RoleSelectMenuBuilder,
     ChannelType,
     ModalBuilder,
     TextInputBuilder,
@@ -20,6 +21,12 @@ export default (client) => {
     client.feedbackMedia ??= {}
     client.feedbackPhone ??= {}
     client.feedbackText ??= {} 
+
+    // Valores Padrão da Embed
+    const descPadrao = "<:emoji_40:1478558562010534088> Gostou Do nosso produto? Envie Seu **Feedback**";
+    const imgPadrao = "https://cdn.discordapp.com/attachments/1457915880481624094/1482229903083704391/IMG_2274.jpg?ex=69b631ab&is=69b4e02b&hm=5b888d89f1cc42cec6a695ef828b45c1870a3bd16e7074e0228ae71e88c7878d&";
+    const emojiBtnPadrao = "<:emoji_65:1482230136538529942>";
+    const textoBtnPadrao = "Enviar Feedback";
 
     /* =====================================================================
        EVENTO 1: INTERAÇÕES (Comandos, Botões, Menus e Modais)
@@ -42,12 +49,22 @@ export default (client) => {
 
                     const imagemPainel = "https://cdn.discordapp.com/attachments/1457915880481624094/1481517561253466213/IMG_2135.jpg?ex=69b5947f&is=69b442ff&hm=76eee3dcea3d75d1afe09d0ee20faa41c36fc216b8b1ce4e4775283cc275f2e3&";
 
+                    // Fileira 1: Configurações do Sistema (Canal e Staff)
                     const row1 = new ActionRowBuilder().addComponents(
                         new ButtonBuilder()
                             .setCustomId("config_channel")
-                            .setLabel("Canal Feedback")
-                            .setEmoji("<:emoji_63:1482158321120051290>")
+                            .setLabel("Canal de Logs")
+                            .setEmoji("📢") // Você pode trocar por emoji customizado se quiser
                             .setStyle(ButtonStyle.Primary),
+                        new ButtonBuilder()
+                            .setCustomId("config_role")
+                            .setLabel("Cargo Staff")
+                            .setEmoji("👥")
+                            .setStyle(ButtonStyle.Primary)
+                    );
+
+                    // Fileira 2: Embed e Envio
+                    const row2 = new ActionRowBuilder().addComponents(
                         new ButtonBuilder()
                             .setCustomId("config_embed_modal")
                             .setLabel("Configurar Aparência")
@@ -62,12 +79,12 @@ export default (client) => {
 
                     return interaction.reply({
                         content: imagemPainel, 
-                        components: [row1],
+                        components: [row1, row2],
                         ephemeral: true
                     });
                 }
 
-                // COMANDO: /fechar (Para fechar o tópico de feedback)
+                // COMANDO: /fechar
                 if (interaction.commandName === "fechar") {
                     if (!interaction.channel.isThread() || !interaction.channel.name.includes("feedback")) {
                         return interaction.reply({ 
@@ -75,9 +92,7 @@ export default (client) => {
                             ephemeral: true 
                         });
                     }
-
                     await interaction.reply("🔒 Fechando este tópico em 3 segundos...");
-                    
                     setTimeout(() => {
                         interaction.channel.delete().catch(console.error);
                     }, 3000);
@@ -90,16 +105,12 @@ export default (client) => {
 
                 const userId = interaction.user.id
 
-                // Botão para fechar o tópico (Caso o membro queira cancelar)
                 if (interaction.customId === "close_feedback") {
                     await interaction.reply("🔒 Cancelando e fechando este tópico em 3 segundos...");
-                    
-                    // Limpa a memória para não bugar futuros tickets
                     delete client.feedbackStep[userId];
                     delete client.feedbackMedia[userId];
                     delete client.feedbackPhone[userId];
                     delete client.feedbackText[userId];
-
                     setTimeout(() => {
                         interaction.channel.delete().catch(console.error);
                     }, 3000);
@@ -109,13 +120,28 @@ export default (client) => {
                 if (interaction.customId === "config_channel") {
                     const menu = new ChannelSelectMenuBuilder()
                         .setCustomId("select_feedback_channel")
-                        .setPlaceholder("Selecione o canal de feedback")
+                        .setPlaceholder("Selecione o canal de logs dos feedbacks")
                         .setChannelTypes(ChannelType.GuildText)
 
                     const row = new ActionRowBuilder().addComponents(menu)
 
                     return interaction.reply({
-                        content: "📢 Escolha o canal onde os feedbacks serão enviados:",
+                        content: "📢 Escolha o canal onde os feedbacks aprovados serão enviados:",
+                        components: [row],
+                        ephemeral: true
+                    });
+                }
+
+                // NOVO BOTÃO: Configurar Cargo Staff
+                if (interaction.customId === "config_role") {
+                    const menu = new RoleSelectMenuBuilder()
+                        .setCustomId("select_staff_role")
+                        .setPlaceholder("Selecione o cargo da sua equipe (Staff)")
+
+                    const row = new ActionRowBuilder().addComponents(menu)
+
+                    return interaction.reply({
+                        content: "👥 Escolha qual cargo será notificado quando um novo feedback for aberto:",
                         components: [row],
                         ephemeral: true
                     });
@@ -128,15 +154,14 @@ export default (client) => {
 
                     const tituloInput = new TextInputBuilder()
                         .setCustomId("input_titulo")
-                        .setLabel("Título")
-                        .setPlaceholder("Ex: Envie seu Feedback")
+                        .setLabel("Título (Deixe vazio para o padrão)")
                         .setStyle(TextInputStyle.Short)
                         .setRequired(false);
 
                     const descInput = new TextInputBuilder()
                         .setCustomId("input_descricao")
                         .setLabel("Descrição")
-                        .setPlaceholder("Ex: Clique no botão abaixo para nos avaliar.")
+                        .setPlaceholder("Ex: Gostou do produto? Envie seu feedback!")
                         .setStyle(TextInputStyle.Paragraph)
                         .setRequired(false);
 
@@ -149,7 +174,7 @@ export default (client) => {
 
                     const imageInput = new TextInputBuilder()
                         .setCustomId("input_imagem")
-                        .setLabel("Link da Imagem")
+                        .setLabel("Link da Imagem (Banner)")
                         .setPlaceholder("Ex: https://meusite.com/imagem.png")
                         .setStyle(TextInputStyle.Short)
                         .setRequired(false);
@@ -179,26 +204,28 @@ export default (client) => {
                             let corFinal = row?.embedColor || "#FFFFFF";
                             if (!corFinal.startsWith("#")) corFinal = "#FFFFFF";
 
+                            // Usa os textos padrões que você mandou, ou o que estiver no banco
                             const embed = new EmbedBuilder()
-                                .setTitle(row?.embedTitle || "⭐ Envie seu Feedback")
-                                .setDescription(row?.embedDescription || "Clique no botão abaixo.")
+                                .setDescription(row?.embedDescription || descPadrao)
                                 .setColor(corFinal);
                                 
-                            let imagemFinal = row?.embedImage;
+                            if (row?.embedTitle) embed.setTitle(row.embedTitle);
+
+                            let imagemFinal = row?.embedImage || imgPadrao;
                             if (imagemFinal && imagemFinal.startsWith("http")) {
                                 embed.setImage(imagemFinal);
                             }
 
                             const button = new ButtonBuilder()
                                 .setCustomId("start_feedback")
-                                .setLabel(row?.buttonLabel || "Enviar Feedback")
-                                .setStyle(ButtonStyle.Primary);
+                                .setLabel(row?.buttonLabel || textoBtnPadrao)
+                                .setStyle(ButtonStyle.Secondary);
 
                             try {
                                 if (row?.buttonEmoji) {
                                     button.setEmoji(row.buttonEmoji);
                                 } else {
-                                    button.setEmoji("⭐");
+                                    button.setEmoji(emojiBtnPadrao);
                                 }
                             } catch (emojiErro) {
                                 button.setEmoji("⭐");
@@ -226,11 +253,11 @@ export default (client) => {
                     });
                 }
 
-                // === INÍCIO DO SISTEMA DE TÓPICO PRIVADO (THREAD) ===
+                // === INÍCIO DO SISTEMA DE TÓPICO PRIVADO ===
                 if (interaction.customId === "start_feedback") {
                     const user = interaction.user;
+                    const guild = interaction.guild;
 
-                    // Verifica se o usuário já tem um tópico ativo no canal
                     const threadNome = `💚-feedback-${user.username}`;
                     const canalExistente = interaction.channel.threads.cache.find(c => c.name === threadNome);
                     
@@ -241,41 +268,48 @@ export default (client) => {
                         });
                     }
 
-                    // Cria o Tópico Privado no mesmo canal da mensagem
-                    const novoTopico = await interaction.channel.threads.create({
-                        name: threadNome,
-                        autoArchiveDuration: 60,
-                        type: ChannelType.PrivateThread, // Tópico invisível para quem não for adicionado
-                        reason: `Ticket de feedback para ${user.username}`
-                    });
+                    // Puxamos do banco o Cargo Staff para marcá-los no tópico
+                    db.get(`SELECT staffRole FROM config WHERE guild=?`, [guild.id], async (err, row) => {
+                        
+                        const novoTopico = await interaction.channel.threads.create({
+                            name: threadNome,
+                            autoArchiveDuration: 60,
+                            type: ChannelType.PrivateThread, 
+                            reason: `Ticket de feedback para ${user.username}`
+                        });
 
-                    // Adiciona o membro dentro do tópico privado
-                    await novoTopico.members.add(user.id);
+                        await novoTopico.members.add(user.id);
 
-                    interaction.reply({
-                        content: `✅ Tópico criado! Vá para <#${novoTopico.id}> para iniciar.`,
-                        ephemeral: true
-                    });
+                        interaction.reply({
+                            content: `✅ Tópico criado! Vá para <#${novoTopico.id}> para iniciar.`,
+                            ephemeral: true
+                        });
 
-                    // Define o primeiro passo como "phone"
-                    client.feedbackStep[user.id] = "phone";
+                        client.feedbackStep[user.id] = "phone";
 
-                    const embedPasso1 = new EmbedBuilder()
-                        .setColor("#FFFFFF")
-                        .setDescription("<:emoji_35:1477664716204540118> Informe Seu Celular");
+                        const embedPasso1 = new EmbedBuilder()
+                            .setColor("#FFFFFF")
+                            .setDescription("<:emoji_35:1477664716204540118> Informe Seu Celular");
 
-                    const rowClose = new ActionRowBuilder().addComponents(
-                        new ButtonBuilder()
-                            .setCustomId("close_feedback")
-                            .setLabel("Cancelar / Fechar")
-                            .setEmoji("🔒")
-                            .setStyle(ButtonStyle.Danger)
-                    );
+                        const rowClose = new ActionRowBuilder().addComponents(
+                            new ButtonBuilder()
+                                .setCustomId("close_feedback")
+                                .setLabel("Cancelar / Fechar")
+                                .setEmoji("🔒")
+                                .setStyle(ButtonStyle.Danger)
+                        );
 
-                    return novoTopico.send({
-                        content: `<@${user.id}>`, 
-                        embeds: [embedPasso1],
-                        components: [rowClose] // Botão de fechar incluído na primeira mensagem!
+                        // Monta a mensagem marcando o usuário e, se existir, a Staff
+                        let msgMencionando = `<@${user.id}>`;
+                        if (row?.staffRole) {
+                            msgMencionando += ` | <@&${row.staffRole}>`;
+                        }
+
+                        return novoTopico.send({
+                            content: msgMencionando, 
+                            embeds: [embedPasso1],
+                            components: [rowClose] 
+                        });
                     });
                 }
             }
@@ -284,27 +318,27 @@ export default (client) => {
             if (interaction.isModalSubmit()) {
                 if (interaction.customId === "modal_config_submit") {
                     
-                    const titulo = interaction.fields.getTextInputValue("input_titulo") || "⭐ Envie seu Feedback";
-                    const descricao = interaction.fields.getTextInputValue("input_descricao") || "Clique no botão abaixo.";
+                    const titulo = interaction.fields.getTextInputValue("input_titulo") || null;
+                    const descricao = interaction.fields.getTextInputValue("input_descricao") || null;
                     const cor = interaction.fields.getTextInputValue("input_cor") || "#ffffff";
                     const imagem = interaction.fields.getTextInputValue("input_imagem") || null;
-                    const emojiBotao = interaction.fields.getTextInputValue("input_emoji") || "⭐";
-                    
-                    const textoBotao = "Enviar Feedback"; 
+                    const emojiBotao = interaction.fields.getTextInputValue("input_emoji") || null;
 
                     db.get(`SELECT * FROM config WHERE guild=?`, [interaction.guild.id], (err, row) => {
+                        // Adicionamos a coluna staffRole no INSERT para não apagá-la ao editar a embed
                         db.run(
-                            `INSERT OR REPLACE INTO config (guild, feedbackChannel, embedTitle, embedDescription, embedColor, embedImage, buttonEmoji, buttonLabel) 
-                             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                            `INSERT OR REPLACE INTO config (guild, feedbackChannel, staffRole, embedTitle, embedDescription, embedColor, embedImage, buttonEmoji, buttonLabel) 
+                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                             [
                                 interaction.guild.id, 
                                 row?.feedbackChannel || null, 
+                                row?.staffRole || null,
                                 titulo, 
                                 descricao, 
                                 cor, 
                                 imagem, 
                                 emojiBotao, 
-                                textoBotao
+                                textoBtnPadrao
                             ]
                         );
                     });
@@ -316,33 +350,55 @@ export default (client) => {
                 }
             }
 
-            /* ================= MENU CANAL ================= */
-            if (interaction.isChannelSelectMenu()) {
-                if (interaction.customId === "select_feedback_channel") {
-                    const channelId = interaction.values[0]
+            /* ================= MENUS (Canal e Cargo) ================= */
+            if (interaction.isChannelSelectMenu() && interaction.customId === "select_feedback_channel") {
+                const channelId = interaction.values[0]
+                db.get(`SELECT * FROM config WHERE guild=?`, [interaction.guild.id], (err, row) => {
+                    db.run(
+                        `INSERT OR REPLACE INTO config (guild, feedbackChannel, staffRole, embedTitle, embedDescription, embedColor, embedImage, buttonEmoji, buttonLabel)
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                        [
+                            interaction.guild.id, 
+                            channelId,
+                            row?.staffRole || null,
+                            row?.embedTitle || null,
+                            row?.embedDescription || null,
+                            row?.embedColor || null,
+                            row?.embedImage || null,
+                            row?.buttonEmoji || null,
+                            row?.buttonLabel || null
+                        ]
+                    );
+                });
+                return interaction.reply({
+                    content: `✅ Canal de Logs configurado: <#${channelId}>`,
+                    ephemeral: true
+                });
+            }
 
-                    db.get(`SELECT * FROM config WHERE guild=?`, [interaction.guild.id], (err, row) => {
-                        db.run(
-                            `INSERT OR REPLACE INTO config (guild, feedbackChannel, embedTitle, embedDescription, embedColor, embedImage, buttonEmoji, buttonLabel)
-                             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-                            [
-                                interaction.guild.id, 
-                                channelId,
-                                row?.embedTitle || null,
-                                row?.embedDescription || null,
-                                row?.embedColor || null,
-                                row?.embedImage || null,
-                                row?.buttonEmoji || null,
-                                row?.buttonLabel || null
-                            ]
-                        );
-                    });
-
-                    return interaction.reply({
-                        content: `✅ Canal configurado: <#${channelId}>`,
-                        ephemeral: true
-                    });
-                }
+            if (interaction.isRoleSelectMenu() && interaction.customId === "select_staff_role") {
+                const roleId = interaction.values[0]
+                db.get(`SELECT * FROM config WHERE guild=?`, [interaction.guild.id], (err, row) => {
+                    db.run(
+                        `INSERT OR REPLACE INTO config (guild, feedbackChannel, staffRole, embedTitle, embedDescription, embedColor, embedImage, buttonEmoji, buttonLabel)
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                        [
+                            interaction.guild.id, 
+                            row?.feedbackChannel || null,
+                            roleId,
+                            row?.embedTitle || null,
+                            row?.embedDescription || null,
+                            row?.embedColor || null,
+                            row?.embedImage || null,
+                            row?.buttonEmoji || null,
+                            row?.buttonLabel || null
+                        ]
+                    );
+                });
+                return interaction.reply({
+                    content: `✅ Cargo Staff configurado: <@&${roleId}>. Eles serão notificados nos novos tickets.`,
+                    ephemeral: true
+                });
             }
 
         } catch (err) {
@@ -360,12 +416,10 @@ export default (client) => {
 
         const userId = msg.author.id;
 
-        // Verifica se a mensagem está no Tópico de feedback e se o usuário está no fluxo
         if (client.feedbackStep[userId] && msg.channel.isThread() && msg.channel.name.includes("feedback")) {
 
             const step = client.feedbackStep[userId];
 
-            // PASSO 1 - Recebe o Celular e pede o Feedback
             if (step === "phone") {
                 client.feedbackPhone[userId] = msg.content;
                 client.feedbackStep[userId] = "text";
@@ -380,7 +434,6 @@ export default (client) => {
                 });
             }
 
-            // PASSO 2 - Recebe o Feedback e pede a Mídia (Clipe)
             if (step === "text") {
                 client.feedbackText[userId] = msg.content;
                 client.feedbackStep[userId] = "media";
@@ -395,7 +448,6 @@ export default (client) => {
                 });
             }
 
-            // PASSO 3 - Recebe a Mídia, envia para o mural e fecha o tópico
             if (step === "media") {
                 if (msg.attachments.size === 0) {
                     const embedErro = new EmbedBuilder()
@@ -422,7 +474,6 @@ export default (client) => {
                         return msg.reply("❌ Canal oficial de feedbacks não encontrado.");
                     }
 
-                    // A Embed final
                     const embedFinal = new EmbedBuilder()
                         .setTitle("⭐ Novo Feedback")
                         .addFields(
@@ -446,7 +497,6 @@ export default (client) => {
 
                     await msg.channel.send("✅ Seu feedback foi enviado com sucesso! Fechando este tópico em 3 segundos...");
 
-                    // Limpa a memória
                     delete client.feedbackStep[userId];
                     delete client.feedbackMedia[userId];
                     delete client.feedbackPhone[userId];
