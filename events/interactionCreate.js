@@ -36,8 +36,11 @@ export default (client) => {
                         });
                     }
 
-                    // PAINEL AGORA É APENAS TEXTO (SEM EMBED)
-                    const mensagemPainel = "⚙️ **Painel de Controle - Sistema de Feedback**\n\nUtilize os botões abaixo para gerenciar como os feedbacks serão recebidos no servidor.\n\n*(Use o botão Configurar Aparência para alterar a cor, imagem e textos da Embed que será enviada para os membros)*";
+                    // A imagem que você enviou
+                    const linkImagemPainel = "https://cdn.discordapp.com/attachments/1457915880481624094/1481517561253466213/IMG_2135.jpg?ex=69b5947f&is=69b442ff&hm=76eee3dcea3d75d1afe09d0ee20faa41c36fc216b8b1ce4e4775283cc275f2e3&";
+
+                    // PAINEL AGORA É MENSAGEM SIMPLES COM A IMAGEM EMBUTIDA NO TEXTO
+                    const mensagemPainelCompleta = `⚙️ **Painel de Controle - Sistema de Feedback**\n\nUtilize os botões abaixo para gerenciar o sistema.\n\n${linkImagemPainel}\n\n*(Use o botão Configurar Aparência para alterar a cor, imagem e textos da Embed que será enviada para os membros)*`;
 
                     const row1 = new ActionRowBuilder().addComponents(
                         new ButtonBuilder()
@@ -58,7 +61,7 @@ export default (client) => {
                     );
 
                     return interaction.reply({
-                        content: mensagemPainel,
+                        content: mensagemPainelCompleta, // Texto + Imagem aqui
                         components: [row1],
                         ephemeral: true
                     });
@@ -132,7 +135,7 @@ export default (client) => {
                     db.get(`SELECT * FROM config WHERE guild=?`, [interaction.guild.id], async (err, row) => {
                         
                         try {
-                            // Validação de cor para não crashar
+                            // Validação de cor básica
                             let corFinal = row?.embedColor || "#FFFFFF";
                             if (!corFinal.startsWith("#")) corFinal = "#FFFFFF";
 
@@ -141,7 +144,7 @@ export default (client) => {
                                 .setDescription(row?.embedDescription || "Clique no botão abaixo.")
                                 .setColor(corFinal);
                                 
-                            // Validação de link de imagem para não crashar
+                            // Validação simples de link de imagem
                             let imagemFinal = row?.embedImage;
                             if (imagemFinal && imagemFinal.startsWith("http")) {
                                 embed.setImage(imagemFinal);
@@ -160,7 +163,7 @@ export default (client) => {
                                     button.setEmoji("⭐");
                                 }
                             } catch (emojiErro) {
-                                button.setEmoji("⭐"); // Se o emoji salvo for inválido, usa a estrela
+                                button.setEmoji("⭐"); // Se falhar, usa a estrela padrão
                             }
 
                             const rowBtn = new ActionRowBuilder().addComponents(button);
