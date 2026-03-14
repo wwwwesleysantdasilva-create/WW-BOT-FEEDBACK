@@ -26,7 +26,7 @@ export default (client) => {
     client.feedbackPhone ??= {}
     client.feedbackText ??= {} 
 
-    // === LINKS DE IMAGEM OFICIAIS (REVISADOS) ===
+    // Links limpos para garantir o carregamento
     const IMG_PAINEL_CONTROL = "https://cdn.discordapp.com/attachments/1457915880481624094/1482260307228364860/IMG_2287.png";
     const IMG_FEEDBACK_PADRAO = "https://cdn.discordapp.com/attachments/1457915880481624094/1482259209054715924/IMG_2286.jpg";
     
@@ -75,8 +75,12 @@ export default (client) => {
                     new ButtonBuilder().setCustomId("btn_enviar").setLabel("Enviar Embed").setEmoji("<a:emoji_60:1482141690721734776>").setStyle(ButtonStyle.Success)
                 );
 
-                // Enviando como conteúdo direto para evitar o bloco cinza
-                return interaction.reply({ content: IMG_PAINEL_CONTROL, components: [r1, r2], ephemeral: true });
+                // ENVIANDO COMO TEXTO (IGUAL AOS PRIMEIROS CÓDIGOS)
+                return interaction.reply({ 
+                    content: IMG_PAINEL_CONTROL, 
+                    components: [r1, r2], 
+                    ephemeral: true 
+                });
             }
 
             if (interaction.isButton()) {
@@ -144,6 +148,7 @@ export default (client) => {
                 }
             }
 
+            // Lógica de Menus e Modais mantida
             if (interaction.isModalSubmit() && interaction.customId === "mod_aparencia") {
                 const [t, d, c, i, e] = ["f_t", "f_d", "f_c", "f_i", "f_e"].map(f => interaction.fields.getTextInputValue(f));
                 db.get(`SELECT * FROM config WHERE guild=?`, [interaction.guild.id], (err, row) => {
