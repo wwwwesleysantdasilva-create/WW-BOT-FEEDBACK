@@ -5,103 +5,75 @@ export default (client)=>{
 
  client.on("messageCreate", async msg=>{
 
+  try{
+
   if(msg.author.bot) return
+  if(!msg.guild) return
 
-  /* ================= EDITAR TEXTO EMBED ================= */
+  const userId = msg.author.id
+  const edit = client.editState?.[userId]
 
-  if(client.editEmbedUser === msg.author.id){
+  /* ================= CONFIGURAÇÕES ================= */
 
-   const data = msg.content.split("|")
+  if(edit){
 
-   const title = data[0]?.trim()
-   const desc = data[1]?.trim()
+   if(edit === "text"){
 
-   db.run(`
-   INSERT OR REPLACE INTO config
-   (guild, embedTitle, embedDescription)
-   VALUES (?,?,?)
-   `,
-   [
-    msg.guild.id,
-    title,
-    desc
-   ])
+    const [title,desc] = msg.content.split("|")
 
-   msg.reply("✅ Texto da embed atualizado!")
+    db.run(`
+    UPDATE config SET
+    embedTitle=?,
+    embedDescription=?
+    WHERE guild=?`,
+    [title?.trim(),desc?.trim(),msg.guild.id])
 
-   client.editEmbedUser = null
+    msg.reply("✅ Texto da embed atualizado.")
+   }
+
+   if(edit === "image"){
+
+    db.run(`
+    UPDATE config SET
+    embedImage=?
+    WHERE guild=?`,
+    [msg.content,msg.guild.id])
+
+    msg.reply("✅ Imagem atualizada.")
+   }
+
+   if(edit === "color"){
+
+    db.run(`
+    UPDATE config SET
+    embedColor=?
+    WHERE guild=?`,
+    [msg.content,msg.guild.id])
+
+    msg.reply("✅ Cor atualizada.")
+   }
+
+   if(edit === "button"){
+
+    const [emoji,label] = msg.content.split("|")
+
+    db.run(`
+    UPDATE config SET
+    buttonEmoji=?,
+    buttonLabel=?
+    WHERE guild=?`,
+    [emoji?.trim(),label?.trim(),msg.guild.id])
+
+    msg.reply("✅ Botão atualizado.")
+   }
+
+   delete client.editState[userId]
    return
   }
 
-  /* ================= EDITAR IMAGEM ================= */
+  /* ================= SISTEMA FEEDBACK ================= */
 
-  if(client.editImageUser === msg.author.id){
-
-   db.run(`
-   INSERT OR REPLACE INTO config
-   (guild, embedImage)
-   VALUES (?,?)
-   `,
-   [
-    msg.guild.id,
-    msg.content
-   ])
-
-   msg.reply("✅ Imagem da embed atualizada!")
-
-   client.editImageUser = null
-   return
-  }
-
-  /* ================= EDITAR COR ================= */
-
-  if(client.editColorUser === msg.author.id){
-
-   db.run(`
-   INSERT OR REPLACE INTO config
-   (guild, embedColor)
-   VALUES (?,?)
-   `,
-   [
-    msg.guild.id,
-    msg.content
-   ])
-
-   msg.reply("✅ Cor da embed atualizada!")
-
-   client.editColorUser = null
-   return
-  }
-
-  /* ================= EDITAR BOTÃO ================= */
-
-  if(client.editButtonUser === msg.author.id){
-
-   const data = msg.content.split("|")
-
-   const emoji = data[0]?.trim()
-   const label = data[1]?.trim()
-
-   db.run(`
-   INSERT OR REPLACE INTO config
-   (guild, buttonEmoji, buttonLabel)
-   VALUES (?,?,?)
-   `,
-   [
-    msg.guild.id,
-    emoji,
-    label
-   ])
-
-   msg.reply("✅ Botão atualizado!")
-
-   client.editButtonUser = null
-   return
-  }
-
-  /* ================= SISTEMA DE FEEDBACK ================= */
-
-  const step = client.feedbackStep[msg.author.id]
+  const step = client.feedbackStep[userId]
 
   if(step === "media"){
 
@@ -109,43 +81,57 @@ export default (client)=>{
     return msg.reply("❌ Envie uma imagem ou vídeo.")
    }
 
-   client.feedbackMedia[msg.author.id] = msg.attachments.first().url
-   client.feedbackStep[msg.author.id] = "text"
+   client.feedbackMedia[userId] = msg.attachments.first().url
+   client.feedbackStep[userId] = "text"
 
    return msg.reply("✍️ Agora escreva seu feedback.")
   }
 
   if(step === "text"){
 
-   const feedbackText = msg.content
+   const feedback = msg.content
 
-   db.get(`SELECT feedbackChannel FROM config WHERE guild=?`,[
-    msg.guild.id
-   ],async(err,row)=>{
+   db.get(
+    `SELECT feedbackChannel FROM config WHERE guild=?`,
+    [msg.guild.id],
+    async(_,row)=>{
 
-    if(!row){
-     return msg.reply("❌ Canal de feedback não configurado.")
-    }
+     if(!row?.feedbackChannel){
+      return msg.reply("❌ Canal de feedback não configurado.")
+     }
 
-    const channel = msg.guild.channels.cache.get(row.feedbackChannel)
+     const channel = msg.guild.channels.cache.get(row.feedbackChannel)
 
-    const embed = new EmbedBuilder()
-    .setTitle("⭐ Novo Feedback")
-    .setDescription(feedbackText)
-    .setThumbnail(msg.author.displayAvatarURL())
-    .setImage(client.feedbackMedia[msg.author.id])
-    .setColor("Gold")
+     if(!channel){
+      return msg.reply("❌ Canal não encontrado.")
+     }
 
-    channel.send({embeds:[embed]})
+     const embed = new EmbedBuilder()
+     .setTitle("⭐ Novo Feedback")
+     .setDescription(feedback)
+     .setThumbnail(msg.author.displayAvatarURL())
+     .setImage(client.feedbackMedia[userId])
+     .setColor("#FFD700")
+     .setFooter({
+      text:`Cliente: ${msg.author.tag}`
+     })
 
-    msg.reply("✅ Feedback enviado com sucesso!")
+     await channel.send({embeds:[embed]})
 
-    delete client.feedbackStep[msg.author.id]
-    delete client.feedbackMedia[msg.author.id]
+     msg.reply("✅ Feedback enviado!")
 
-   })
+     delete client.feedbackStep[userId]
+     delete client.feedbackMedia[userId]
+
+    })
 
   }
+
+ }catch(err){
+
+  console.error("Erro message:",err)
+
+ }
 
  })
 
