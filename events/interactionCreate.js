@@ -15,9 +15,11 @@ import db from "../database/db.js"
 
 export default (client) => {
 
+    // Memória temporária para o sistema de tickets
     client.feedbackStep ??= {}
     client.feedbackMedia ??= {}
     client.feedbackPhone ??= {}
+    client.feedbackText ??= {} // Nova memória para guardar o texto do feedback
 
     /* =====================================================================
        EVENTO 1: INTERAÇÕES (Comandos, Botões, Menus e Modais)
@@ -90,7 +92,6 @@ export default (client) => {
                         .setCustomId("modal_config_submit")
                         .setTitle("Configurar Embed");
 
-                    // 1. Título
                     const tituloInput = new TextInputBuilder()
                         .setCustomId("input_titulo")
                         .setLabel("Título")
@@ -98,7 +99,6 @@ export default (client) => {
                         .setStyle(TextInputStyle.Short)
                         .setRequired(false);
 
-                    // 2. Descrição
                     const descInput = new TextInputBuilder()
                         .setCustomId("input_descricao")
                         .setLabel("Descrição")
@@ -106,7 +106,6 @@ export default (client) => {
                         .setStyle(TextInputStyle.Paragraph)
                         .setRequired(false);
 
-                    // 3. Cor
                     const colorInput = new TextInputBuilder()
                         .setCustomId("input_cor")
                         .setLabel("Cor HEX")
@@ -114,7 +113,6 @@ export default (client) => {
                         .setStyle(TextInputStyle.Short)
                         .setRequired(false);
 
-                    // 4. Link da Imagem
                     const imageInput = new TextInputBuilder()
                         .setCustomId("input_imagem")
                         .setLabel("Link da Imagem")
@@ -122,7 +120,6 @@ export default (client) => {
                         .setStyle(TextInputStyle.Short)
                         .setRequired(false);
 
-                    // 5. Emoji do Botão
                     const emojiInput = new TextInputBuilder()
                         .setCustomId("input_emoji")
                         .setLabel("Emoji do Botão")
@@ -145,7 +142,6 @@ export default (client) => {
                     db.get(`SELECT * FROM config WHERE guild=?`, [interaction.guild.id], async (err, row) => {
                         
                         try {
-                            // Validação de cor básica
                             let corFinal = row?.embedColor || "#FFFFFF";
                             if (!corFinal.startsWith("#")) corFinal = "#FFFFFF";
 
@@ -154,7 +150,6 @@ export default (client) => {
                                 .setDescription(row?.embedDescription || "Clique no botão abaixo.")
                                 .setColor(corFinal);
                                 
-                            // Validação simples de link de imagem
                             let imagemFinal = row?.embedImage;
                             if (imagemFinal && imagemFinal.startsWith("http")) {
                                 embed.setImage(imagemFinal);
@@ -165,7 +160,6 @@ export default (client) => {
                                 .setLabel(row?.buttonLabel || "Enviar Feedback")
                                 .setStyle(ButtonStyle.Primary);
 
-                            // Validação de emoji
                             try {
                                 if (row?.buttonEmoji) {
                                     button.setEmoji(row.buttonEmoji);
@@ -173,7 +167,7 @@ export default (client) => {
                                     button.setEmoji("⭐");
                                 }
                             } catch (emojiErro) {
-                                button.setEmoji("⭐"); // Se falhar, usa a estrela padrão
+                                button.setEmoji("⭐");
                             }
 
                             const rowBtn = new ActionRowBuilder().addComponents(button);
@@ -198,20 +192,22 @@ export default (client) => {
                     });
                 }
 
+                // === INÍCIO DO SISTEMA DE TICKET PRIVADO ===
                 if (interaction.customId === "start_feedback") {
                     const guild = interaction.guild;
                     const user = interaction.user;
 
-                    const canalExistente = guild.channels.cache.find(c => c.name === `feedback-${user.id}`);
-                    if (canalExistente) {
+                    // O bot verifica se o usuário já tem canal pelo seu passo a passo ou pelo nome
+                    if (client.feedbackStep[user.id]) {
                         return interaction.reply({
-                            content: `❌ Você já tem um canal de feedback aberto em <#${canalExistente.id}>`,
+                            content: `❌ Você já tem um feedback em andamento!`,
                             ephemeral: true
                         });
                     }
 
+                    // Formata o nome do canal: 💚-feedback-nomedousuario (Discord formata automático)
                     const novoCanal = await guild.channels.create({
-                        name: `feedback-${user.id}`,
+                        name: `💚-feedback-${user.username}`,
                         type: ChannelType.GuildText,
                         permissionOverwrites: [
                             {
@@ -234,11 +230,16 @@ export default (client) => {
                         ephemeral: true
                     });
 
-                    client.feedbackStep[userId] = "media";
+                    // Define o primeiro passo como "phone"
+                    client.feedbackStep[user.id] = "phone";
+
+                    const embedPasso1 = new EmbedBuilder()
+                        .setColor("#FFFFFF")
+                        .setDescription("<:emoji_35:1477664716204540118> Informe Seu Celular");
 
                     return novoCanal.send({
-                        content: `<@${user.id}>`,
-                        embeds: [new EmbedBuilder().setColor("#fcba03").setDescription("📷 **Passo 1:** Envie uma imagem ou vídeo do resultado.")]
+                        content: `<@${user.id}>`, // Marca o usuário fora da embed
+                        embeds: [embedPasso1]
                     });
                 }
             }
@@ -253,7 +254,6 @@ export default (client) => {
                     const imagem = interaction.fields.getTextInputValue("input_imagem") || null;
                     const emojiBotao = interaction.fields.getTextInputValue("input_emoji") || "⭐";
                     
-                    // O texto do botão ficará como padrão "Enviar Feedback" já que você pediu só o emoji
                     const textoBotao = "Enviar Feedback"; 
 
                     db.get(`SELECT * FROM config WHERE guild=?`, [interaction.guild.id], (err, row) => {
@@ -324,27 +324,55 @@ export default (client) => {
 
         const userId = msg.author.id;
 
-        if (msg.channel.name === `feedback-${userId}`) {
+        // Verifica se a mensagem está no canal de feedback e se o usuário está no fluxo
+        if (client.feedbackStep[userId] && msg.channel.name.includes("feedback")) {
 
             const step = client.feedbackStep[userId];
 
-            if (step === "media") {
-                if (msg.attachments.size === 0) {
-                    return msg.reply("❌ Por favor, envie uma imagem ou vídeo para continuar.");
-                }
-                client.feedbackMedia[userId] = msg.attachments.first().url;
-                client.feedbackStep[userId] = "phone";
-                return msg.reply("📱 **Passo 2:** Qual modelo do celular você usa?\nEx: iPhone 12 / Redmi Note 11");
-            }
-
+            // PASSO 1 - Recebe o Celular e pede o Feedback
             if (step === "phone") {
                 client.feedbackPhone[userId] = msg.content;
                 client.feedbackStep[userId] = "text";
-                return msg.reply("💬 **Passo 3:** Agora escreva seu feedback detalhado.");
+                
+                const embedPasso2 = new EmbedBuilder()
+                    .setColor("#FFFFFF")
+                    .setDescription("<:emoji_35:1477664716204540118> Envie Seu feedback");
+
+                return msg.channel.send({
+                    content: `<@${userId}>`,
+                    embeds: [embedPasso2]
+                });
             }
 
+            // PASSO 2 - Recebe o Feedback e pede a Mídia (Clipe)
             if (step === "text") {
-                const feedbackText = msg.content;
+                client.feedbackText[userId] = msg.content;
+                client.feedbackStep[userId] = "media";
+                
+                const embedPasso3 = new EmbedBuilder()
+                    .setColor("#FFFFFF")
+                    .setDescription("<:emoji_35:1477664716204540118> Agora para finalizar envie seu clipe");
+
+                return msg.channel.send({
+                    content: `<@${userId}>`,
+                    embeds: [embedPasso3]
+                });
+            }
+
+            // PASSO 3 - Recebe a Mídia, envia para o mural e fecha o canal
+            if (step === "media") {
+                if (msg.attachments.size === 0) {
+                    const embedErro = new EmbedBuilder()
+                        .setColor("#FFFFFF")
+                        .setDescription("❌ Por favor, envie uma imagem ou vídeo para finalizar.");
+                    
+                    return msg.channel.send({
+                        content: `<@${userId}>`,
+                        embeds: [embedErro]
+                    });
+                }
+                
+                client.feedbackMedia[userId] = msg.attachments.first().url;
 
                 db.get(`SELECT feedbackChannel FROM config WHERE guild=?`, [msg.guild.id], async (err, row) => {
                     
@@ -355,10 +383,11 @@ export default (client) => {
                     const channel = msg.guild.channels.cache.get(row.feedbackChannel);
 
                     if (!channel) {
-                        return msg.reply("❌ Canal de feedback não encontrado. Ele pode ter sido apagado.");
+                        return msg.reply("❌ Canal oficial de feedbacks não encontrado.");
                     }
 
-                    const embed = new EmbedBuilder()
+                    // A Embed que vai para o Mural Público (Mudei pra branco aqui também pra combinar com o padrão)
+                    const embedFinal = new EmbedBuilder()
                         .setTitle("⭐ Novo Feedback")
                         .addFields(
                             {
@@ -368,22 +397,24 @@ export default (client) => {
                             },
                             {
                                 name: "💬 Feedback",
-                                value: feedbackText,
+                                value: client.feedbackText[userId] || "Sem texto",
                                 inline: false
                             }
                         )
                         .setThumbnail(msg.author.displayAvatarURL())
                         .setImage(client.feedbackMedia[userId])
-                        .setColor("#FFD700")
-                        .setFooter({ text: `Cliente: ${msg.author.tag}` });
+                        .setColor("#FFFFFF") 
+                        .setFooter({ text: `Enviado por: ${msg.author.tag}` });
 
-                    await channel.send({ embeds: [embed] });
+                    await channel.send({ embeds: [embedFinal] });
 
-                    await msg.reply("✅ Feedback enviado com sucesso! Este canal será fechado em 3 segundos...");
+                    await msg.channel.send("✅ Seu feedback foi enviado com sucesso! Fechando este canal em 3 segundos...");
 
+                    // Limpa a memória para esse usuário poder abrir outro ticket depois
                     delete client.feedbackStep[userId];
                     delete client.feedbackMedia[userId];
                     delete client.feedbackPhone[userId];
+                    delete client.feedbackText[userId];
 
                     setTimeout(() => {
                         msg.channel.delete().catch(console.error);
