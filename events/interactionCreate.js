@@ -22,56 +22,57 @@ export default (client) => {
 
         try {
 
-            /* ================= SLASH COMMAND ================= */
+/* ================= SLASH COMMAND ================= */
 
-            if (interaction.isChatInputCommand()) {
+if (interaction.isChatInputCommand()) {
 
-                if (interaction.commandName === "painel") {
+    if (interaction.commandName === "painel") {
 
-                    if (!interaction.member.permissions.has("Administrator")) {
-                        return interaction.reply({
-                            content: "❌ Apenas administradores podem usar este painel.",
-                            ephemeral: true
-                        })
-                    }
+        if (!interaction.member.permissions.has("Administrator")) {
+            return interaction.reply({
+                content: "❌ Apenas administradores podem usar este painel.",
+                ephemeral: true
+            });
+        }
 
-                    const embed = new EmbedBuilder()
-                        .setTitle("⚙️ Painel de Controle")
-                        .setDescription("Gerencie o sistema de feedback do servidor.")
-                        .setColor("#FFFFFF")
+        const embed = new EmbedBuilder()
+            .setTitle("⚙️ Painel de Controle")
+            .setDescription("Gerencie o sistema de feedback do servidor.")
+            .setColor("#FFFFFF")
+            // Adicionando a imagem fixa do painel que você enviou:
+            .setImage("https://cdn.discordapp.com/attachments/1457915880481624094/1481517561253466213/IMG_2135.jpg?ex=69b5947f&is=69b442ff&hm=76eee3dcea3d75d1afe09d0ee20faa41c36fc216b8b1ce4e4775283cc275f2e3&");
 
-                    // Reduzi o painel para apenas 3 botões para ficar mais limpo!
-                    const row1 = new ActionRowBuilder().addComponents(
+        const row1 = new ActionRowBuilder().addComponents(
 
-                        new ButtonBuilder()
-                            .setCustomId("config_channel")
-                            .setLabel("Canal Feedback")
-                            .setEmoji("📢")
-                            .setStyle(ButtonStyle.Primary),
+            new ButtonBuilder()
+                .setCustomId("config_channel")
+                .setLabel("Canal Feedback")
+                .setEmoji("<:emoji_63:1482158321120051290>") // Emoji customizado
+                .setStyle(ButtonStyle.Primary),
 
-                        new ButtonBuilder()
-                            .setCustomId("config_embed_modal")
-                            .setLabel("Configurar Aparência")
-                            .setEmoji("🎨")
-                            .setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder()
+                .setCustomId("config_embed_modal")
+                .setLabel("Configurar Aparência")
+                .setEmoji("<:emoji_62:1482158294649934017>") // Emoji customizado
+                .setStyle(ButtonStyle.Secondary),
 
-                        new ButtonBuilder()
-                            .setCustomId("send_embed")
-                            .setLabel("Enviar Embed")
-                            .setEmoji("⭐")
-                            .setStyle(ButtonStyle.Success)
+            new ButtonBuilder()
+                .setCustomId("send_embed")
+                .setLabel("Enviar Embed")
+                .setEmoji("<a:emoji_60:1482141690721734776>") // Emoji customizado animado
+                .setStyle(ButtonStyle.Success)
 
-                    )
+        );
 
-                    return interaction.reply({
-                        embeds: [embed],
-                        components: [row1],
-                        ephemeral: true
-                    })
+        return interaction.reply({
+            embeds: [embed],
+            components: [row1],
+            ephemeral: true
+        });
 
-                }
+    }
 
-            }
+}
 
             /* ================= BOTÕES ================= */
 
